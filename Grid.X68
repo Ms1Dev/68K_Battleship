@@ -3,6 +3,7 @@
 * add ships to grid *
 shipsOnGrd
             link    a0,#-4
+            move.l  16(a0),d3           ; computer player flag
             move.l  #0,-4(a0)           ; counter variable
             move.l  12(a0),a4
 nxtShip     move.l  (a4),d1             ; put ship data into d1
@@ -16,7 +17,6 @@ nxtShip     move.l  (a4),d1             ; put ship data into d1
             move.l  (a4),-(SP)          ; push ship data onto stack
             jsr     addToGrid
             adda    #$4,a7   
-            
                           
 incShip     addq.l  #4,a4               ; increment array
             addq.l  #1,-4(a0)           ; decrement counter
@@ -75,6 +75,7 @@ addToGrid
             add.l   -8(a0),d1           ; add x and y values to get first tile                     
             adda.l  d1,a2               ; get array index
             clr     d5                  ; clear collision flag
+            move.l  -12(a0),d1
 setTile     
             tst.b   d5                  ; if d5 is set then skip
             bne     setValue            ; this avoids unsetting the collision flag on the next tile
@@ -87,25 +88,28 @@ setValue
             addq    #1,a2               ; increment the address counter by 1 (next column)
             bra     cntnue
 incRow      adda    #10,a2              ; inc address by 10 (next row)
-cntnue      subq.l  #1,-12(a0)          ; decrement length variable
+cntnue      subq.l  #1,d1               ; decrement length variable
             bne     setTile
+            tst     d3
+            beq     noMargin
             
+            move.l  -12(a0),d1          ; push length value on stack
+            move.w  d1,-(SP)
             
-            * move.l  -12(a0),d1          ; push length value on stack
-            * move.w  d1,-(SP)
+            clr     d1
+            move.b  -13(a0),d1          ; push horizontal flag on stack
+            move.w  d1,-(SP)
             
-            * clr     d1
-            * move.b  -13(a0),d1          ; push horizontal flag on stack
-            * move.w  d1,-(SP)
+            move.l  -8(a0),d1           ; push y value on stack
+            divu    #10,d1
+            move.w  d1,-(SP)
+            move.l  -4(a0),d1           ; push x value on stack
+            move.w  d1,-(SP)
             
-            * move.l  -8(a0),d1           ; push y value on stack
-            * move.w  d1,-(SP)
-            * move.l  -4(a0),d1           ; push x value on stack
-            * move.w  d1,-(SP)
-            
-            * jsr     addMargin
-            * adda    #$8,a7                                    
-            
+            jsr     addMargin
+            adda    #$8,a7                                    
+  
+noMargin         
             unlk    a0
             rts
 
@@ -144,6 +148,10 @@ drwRow      move.w  #GRIDX,d3           ; starting x value
             addq    #1,d5               ; increment row counter
             cmp     #$a,d5
             bne     drwRow
+* set fill back to black
+            move.l  #BLACK,d1
+            move    #81,d0
+            trap    #15
             rts 
 
 drwCol      jsr     fillRct
@@ -172,7 +180,6 @@ fillRct     link    a0,#-4
             move.l  (a3),d1             ; move selected colour into d1
 fill        move.b  #81,d0              ; set fill colour
             trap    #15 
-            
             unlk    a0 
             rts
             
@@ -242,29 +249,55 @@ drawCursorTarget
 
 *-----------------------------------------------------------------------------------
 
+* sets the value of all neighbouring tiles of a ship
+* used for computer setup so ships are not clumped together
+
+
 addMargin
             link    a0,#-8
             move.w  8(a0),d1            ; ship x
-            move.w  10(a0),d2           ; ship y
-            
-            subq.w  #1,d1            
+            move.w  10(a0),d2           ; ship y      
             move.w  d1,-2(a0)           ; store start x pos
-            subq.w  #1,d2
-            
             move.w  d2,-4(a0)           ; store start y pos
-            tst.w   8(a0)               ; test the horizontal flag
+            tst.w   12(a0)              ; test the horizontal flag
             beq     isVertical
-            move.w  14(a0),d1           ; x counter 
-            addq.w  #2,d1
+            
+            move.w  14(a0),d1           ; x counter
+            addq.w  #1,d1
             move.w  d1,-6(a0)           ; store x counter
             move.w  #2,-8(a0)           ; store y counter
-            bra     addMarginToGrid
+            bra     truncateMargin
 isVertical
             move.w  #2,-6(a0)           ; store x counter
             move.w  14(a0),d2
-            addq.w  #2,d2               ; y counter is length plus 2
+            addq.w  #1,d2               ; y counter is length plus 2
             move.w  d2,-8(a0)           ; store y counter
-            
+truncateMargin
+* truncate x and y counters if they exceed grid
+            move.w  -2(a0),d1
+            tst.w   d1
+            beq     noSubtractX         ; do not subtract from x if zero
+            subq.w  #1,-2(a0)
+            addq.w  #1,-6(a0)
+
+noSubtractX   
+            move.w  -6(a0),d1           ; x counter
+            add.w   -2(a0),d1
+            cmp.w   #10,d1
+            ble     xWithinLimit
+            subq.w  #1,-6(a0)
+xWithinLimit
+            move.w  -4(a0),d1
+            tst.w   d1
+            beq     noSubtractY         ; no subtract if y is zero
+            subq.w  #1,-4(a0)
+            addq.w  #1,-8(a0)
+noSubtractY
+            move.w  -8(a0),d1
+            add.w   -4(a0),d1
+            cmp.w   #10,d1
+            ble     addMarginToGrid
+            subq.w  #1,-8(a0)
 addMarginToGrid            
             lea     cmpGrid,a1
             add.w   -2(a0),a1
@@ -274,8 +307,11 @@ addMarginToGrid
             move.w  -6(a0),d1           ; x counter
 addNextMargin
             tst.b   (a1)                ; if tile is not empty then skip
-            beq     addMarginCont
-            addq    #1,(a1)
+            beq     addMarginCont  
+            addq.l  #1,a1
+            subq.w  #1,d1
+            beq     incrementRow 
+            bra     addNextMargin
 addMarginCont
             move.b  #$10,(a1)+
             subq.w  #1,d1
@@ -285,13 +321,12 @@ endOfLoop
             unlk    a0
             rts
 
-incrementRow
-            tst.w   -8(a0)
-            beq     endOfLoop          
+incrementRow       
             adda    #10,a1              ; add row
             suba    -6(a0),a1           ; set x back to start
             move.w  -6(a0),d1           ; reset x counter
             subq.w  #1,-8(a0)           ; decrement row counter
+            beq     endOfLoop  
             bra     addNextMargin
  
  

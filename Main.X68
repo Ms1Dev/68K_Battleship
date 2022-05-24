@@ -113,11 +113,12 @@ noShipInc
             and.l   #$FFFF000F,(a3)     ; clear x,y old data
             add.l   d1,(a3)             ; add new x,y data
 setupContinued
+            move.l  #0,-(SP)            ; computer player flag
             pea     plyrShips   
             pea     plyrGrid     
-            jsr     clearGrd
+            jsr     clearGrd           
             jsr     shipsOnGrd
-            adda    #$4,a7              
+            adda    #$8,a7              
             unlk    a0
             rts
  
@@ -207,12 +208,13 @@ notHorizontal
             and.l   #$FFFFF00F,d2       ; clear old x y value
             add.l   d1,d2
             move.l  d2,(a3)             ; store ship data
-
+            
+            move.l  #1,-(SP)            ; computer player flag
             pea     cmpShips   
             pea     cmpGrid     
             jsr     clearGrd
             jsr     shipsOnGrd
-            adda    #$4,a7
+            adda    #$8,a7
             tst.b   d5                  ; collision flag
             bne     placeShipAgain
             subq.l  #1,selected

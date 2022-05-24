@@ -21,9 +21,6 @@ START:                              ; first instruction of program
     SIMHALT                     ; halt simulator
 
     INCLUDE     Main.X68
-    INCLUDE     Random.X68
-    INCLUDE     Grid.X68
- 
     
 END    START        ; last line of source
 
