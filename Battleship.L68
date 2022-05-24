@@ -1,0 +1,831 @@
+00001000 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.16.01
+Created On: 24/05/2022 11:34:42
+
+00000000                             1  *-----------------------------------------------------------
+00000000                             2  * Title      :
+00000000                             3  * Written by :
+00000000                             4  * Date       :
+00000000                             5  * Description:
+00000000                             6  
+00000000                             7  *-----------------------------------------------------------
+00001000                             8      ORG    $1000
+00001000                             9  START:                              ; first instruction of program
+00001000                            10              
+00001000                            11  * initialise
+00001000                            12  
+00001000  700C                      13              move.l      #12,d0      ; Turn Off Keyboard Echo (don't display characters)
+00001002  7200                      14              move.l      #0,d1
+00001004  4E4F                      15              trap        #15
+00001006  4EB9 000013B4             16              jsr         setSeed     ; set the random seed
+0000100C  4EB9 00001016             17              jsr         gameLoop
+00001012                            18  
+00001012                            19          
+00001012                            20  
+00001012  FFFF FFFF                 21      SIMHALT                     ; halt simulator
+00001016                            22  
+00001016                            23      INCLUDE     Main.X68
+00001016                            24    
+00001016                            25  
+00001016                            26  
+00001016  0C39 0000 000017C2        27  gameLoop    cmp.b   #0,gameMode       
+0000101E  6700 002E                 28              beq     setupMode
+00001022  0C39 0001 000017C2        29              cmp.b   #1,gameMode       
+0000102A  6700 002A                 30              beq     beginMessage
+0000102E  0C39 0002 000017C2        31              cmp.b   #2,gameMode
+00001036  6700 0026                 32              beq     cmpSetup
+0000103A  0C39 0003 000017C2        33              cmp.b   #3,gameMode
+00001042  6700 0028                 34              beq     playMode    
+00001046                            35  gameContd   
+00001046  4EB9 00001360             36              jsr     gridRfrsh
+0000104C  60C8                      37              bra     gameLoop
+0000104E                            38  setupMode   
+0000104E  4EB9 00001074             39              jsr     setup
+00001054  60F0                      40              bra     gameContd
+00001056                            41              
+00001056                            42  beginMessage
+00001056  4EB9 0000119E             43              jsr     begin
+0000105C  60E8                      44              bra     gameContd 
+0000105E                            45  
+0000105E                            46  cmpSetup    
+0000105E  4EB9 00001204             47              jsr     computerSetup
+00001064  5239 000017C2             48              addq.b  #1,gameMode  
+0000106A  60DA                      49              bra     gameContd
+0000106C                            50              
+0000106C                            51  playMode    
+0000106C  4EB9 000012C4             52              jsr     playRound
+00001072  60D2                      53              bra     gameContd
+00001074                            54  
+00001074                            55  
+00001074                            56  
+00001074                            57  
+00001074                            58  setup       
+00001074  4E50 0000                 59              link    a0,#0
+00001078  47F9 000017C4             60              lea     plyrShips,a3        ; select ship data from array
+0000107E  2239 000017EC             61              move.l  selected,d1
+00001084  C2FC 0004                 62              mulu    #4,d1
+00001088  D7C1                      63              adda.l  d1,a3               ; increment array to get selected ship data
+0000108A  0293 FFF0FFFF             64              and.l   #$FFF0FFFF,(a3)     ; clear colour attribute
+00001090  0693 00050000             65              add.l   #$00050000,(a3)     ; set colour 
+00001096                            66              
+00001096  2413                      67              move.l  (a3),d2             ; move ship data into d2
+00001098  84BC 10000000             68              or.l    #$10000000,d2       ; set the show bit 
+0000109E  2682                      69              move.l  d2,(a3)
+000010A0  C4BC 0000000F             70              and.l   #$0000000F,d2       ; get length attribute         
+000010A6  2082                      71              move.l  d2,(a0)             ; store length attribute in variable              
+000010A8                            72  
+000010A8  2613                      73              move.l  (a3),d3             ; move ship data into d3
+000010AA  C6BC 00001000             74              and.l   #$00001000,d3       ; get v/h bit 
+000010B0  2F03                      75              move.l  d3,-(SP)            ; push v/h bit onto stack      
+000010B2  2F10                      76              move.l  (a0),-(SP)          ; pass ship array index as argument            
+000010B4  4EB9 000012D4             77              jsr     userInput           ; get user input
+000010BA  241F                      78              move.l  (SP)+,d2            ; put return value into d2
+000010BC  261F                      79              move.l  (SP)+,d3            ; pop v/h bit into d3
+000010BE  49F9 000017C0             80              lea     cursorPos,a4        ; get the cursor position
+000010C4  B47C 0072                 81              cmp     #'r',d2             ; if return value equals r then rotate ship
+000010C8  6600 002E                 82              bne     noRotate            
+000010CC                            83              
+000010CC  2810                      84              move.l  (a0),d4             ; move index into d4
+000010CE  D814                      85              add.b   (a4),d4             ; add x pos to index
+000010D0  0484 00000009             86              sub.l   #9,d4               ; subtract boundary value from result
+000010D6  6F00 0004                 87              ble     noCrsrLft           ; 
+000010DA  9914                      88              sub.b   d4,(a4)             ; take difference from cursor x pos   
+000010DC                            89  noCrsrLft   
+000010DC  2810                      90              move.l  (a0),d4             
+000010DE  D82C 0001                 91              add.b   1(a4),d4                
+000010E2  0484 00000009             92              sub.l   #9,d4
+000010E8  6F00 0006                 93              ble     noCrsrUp   
+000010EC  992C 0001                 94              sub.b   d4,1(a4) 
+000010F0                            95  noCrsrUp    
+000010F0  0683 FFFFEFFF             96              add.l   #$FFFFEFFF,d3       
+000010F6  4683                      97              not.l   d3                  ; flip v/h bit
+000010F8                            98  noRotate    
+000010F8  B47C 0065                 99              cmp     #'e',d2             ; if e not pressed then skip ship increment
+000010FC  6600 006C                100              bne     noShipInc
+00001100  4A05                     101              tst.b   d5                  ; collision flag
+00001102  6600 0066                102              bne     noShipInc
+00001106  53B9 000017EC            103              subq.l  #1,selected         ; decrement ship index
+0000110C  6A00 0014                104              bpl     noRsetIndex  
+00001110  23FC 00000004 000017EC   105              move.l  #4,selected         ; if ship index is minus then set back to 4
+0000111A  45F9 000017C2            106              lea     gameMode,a2         ; load game mode
+00001120  5212                     107              addq.b  #1,(a2)             ; increment game mode to play mode
+00001122                           108  noRsetIndex     
+00001122  0293 FFF0FFFF            109              and.l   #$FFF0FFFF,(a3)     ; clear colour attribute of prev ship
+00001128  0693 00020000            110              add.l   #$00020000,(a3)     ; set colour 
+0000112E  47F9 000017C4            111              lea     plyrShips,a3        ; load ships
+00001134  2239 000017EC            112              move.l  selected,d1         
+0000113A  C2FC 0004                113              mulu    #4,d1           
+0000113E  D7C1                     114              adda.l  d1,a3               ; select the next ship
+00001140  0293 FFF0FFFF            115              and.l   #$FFF0FFFF,(a3)     ; clear colour attribute of next ship
+00001146  0693 00050000            116              add.l   #$00050000,(a3)     ; set colour 
+0000114C  2213                     117              move.l  (a3),d1             ; ship data into d1
+0000114E  C2BC 00000F00            118              and.l   #$00000F00,d1       ; get x pos of ship
+00001154  E089                     119              lsr.l   #8,d1
+00001156  1881                     120              move.b  d1,(a4)             ; set cursor x pos to ship x pos
+00001158  2213                     121              move.l  (a3),d1             ; ship data into d1
+0000115A  C2BC 000000F0            122              and.l   #$000000F0,d1       ; get y pos of ship
+00001160  E889                     123              lsr.l   #4,d1
+00001162  1941 0001                124              move.b  d1,1(a4)            ; set cursor y pos to ship y pos          
+00001166  6000 0018                125              bra     setupContinued   
+0000116A                           126  noShipInc
+0000116A  4241                     127              clr     d1  
+0000116C  1214                     128              move.b  (a4),d1             ; move  x value into d1
+0000116E  E989                     129              lsl.l   #4,d1               ; shift left to make room for y
+00001170  D22C 0001                130              add.b   1(a4),d1            ; add y value to d1
+00001174  E989                     131              lsl.l   #4,d1               ; shift left
+00001176  D283                     132              add.l   d3,d1
+00001178  0293 FFFF000F            133              and.l   #$FFFF000F,(a3)     ; clear x,y old data
+0000117E  D393                     134              add.l   d1,(a3)             ; add new x,y data
+00001180                           135  setupContinued
+00001180  4879 000017C4            136              pea     plyrShips   
+00001186  4879 000016DC            137              pea     plyrGrid     
+0000118C  4EB9 0000151C            138              jsr     clearGrd
+00001192  4EB9 00001400            139              jsr     shipsOnGrd
+00001198  584F                     140              adda    #$4,a7              
+0000119A  4E58                     141              unlk    a0
+0000119C  4E75                     142              rts
+0000119E                           143   
+0000119E                           144       
+0000119E                           145  begin   
+0000119E  43F9 000017F0            146              lea     beginMsg,a1        
+000011A4  323C 012C                147              move.w  #300,d1                
+000011A8  343C 00FA                148              move.w  #250,d2             
+000011AC  705F                     149              move.l  #95,d0
+000011AE  4E4F                     150              trap    #15                 ; print begin message on screen
+000011B0  2F3C 00000000            151              move.l  #0,-(SP)            ; make room on stack for return value
+000011B6  4EB9 000012D4            152              jsr     userInput
+000011BC  221F                     153              move.l  (SP)+,d1
+000011BE  B27C 0079                154              cmp     #'y',d1             
+000011C2  6700 001E                155              beq     beginGame
+000011C6  B27C 006E                156              cmp     #'n',d1
+000011CA  6700 0004                157              beq     backToSetup
+000011CE  4E75                     158              rts
+000011D0                           159  backToSetup 
+000011D0  13FC 0000 000017C2       160              move.b  #0,gameMode         ; set game mode back to 0
+000011D8  323C FF00                161              move.w  #$FF00,d1           ; clear screen
+000011DC  700B                     162              move.l  #11,d0
+000011DE  4E4F                     163              trap    #15
+000011E0  4E75                     164              rts
+000011E2                           165  beginGame   
+000011E2  5239 000017C2            166              addq.b  #1,gameMode         ; increment game mode
+000011E8  323C FF00                167              move.w  #$FF00,d1           ; clear screen
+000011EC  700B                     168              move.l  #11,d0
+000011EE  4E4F                     169              trap    #15
+000011F0  43F9 00001818            170              lea     startMsg,a1
+000011F6  323C 012C                171              move.w  #300,d1
+000011FA  343C 00FA                172              move.w  #250,d2
+000011FE  705F                     173              move.l  #95,d0
+00001200  4E4F                     174              trap    #15
+00001202  4E75                     175              rts              
+00001204                           176  
+00001204                           177  
+00001204                           178  
+00001204                           179  
+00001204                           180  computerSetup
+00001204  4E50 0000                181              link    a0,#0
+00001208                           182      * load selected ship
+00001208                           183  loadNextShip  
+00001208  47F9 000017D8            184              lea     cmpShips,a3         ; select ship data from array
+0000120E  2239 000017EC            185              move.l  selected,d1
+00001214  C2FC 0004                186              mulu    #4,d1
+00001218  D7C1                     187              adda.l  d1,a3               ; increment array to get selected ship data
+0000121A  0093 10000000            188              or.l    #$10000000,(a3)
+00001220                           189              
+00001220                           190      * get random x y pos
+00001220  2813                     191              move.l  (a3),d4             ; move ship data into d2
+00001222  C8BC 0000000F            192              and.l   #$0000000F,d4       ; get length attribute
+00001228  4242                     193              clr     d2
+0000122A  4243                     194              clr     d3        
+0000122C  343C 000A                195              move.w  #10,d2              ; load grid size
+00001230  9444                     196              sub.w   d4,d2               ; subtract ship length from grid size
+00001232  363C 0000                197              move.w  #0,d3
+00001236  4EB9 000013C2            198              jsr     getRandom
+0000123C  4244                     199              clr     d4
+0000123E  3801                     200              move.w  d1,d4               ; move result into d4
+00001240  4844                     201              swap    d4
+00001242  343C 000A                202              move.w  #10,d2              ; d4 contains y value in high word and x in low word
+00001246  363C 0000                203              move.w  #0,d3
+0000124A  4EB9 000013C2            204              jsr     getRandom
+00001250  3801                     205              move.w  d1,d4
+00001252  0293 FFFF0FFF            206              and.l   #$FFFF0FFF,(a3)     ; clear horizontal bit
+00001258                           207              
+00001258                           208      * randomly set vertical/horizontal        
+00001258                           209     
+00001258  343C FFFF                210              move.w  #$FFFF,d2           ; any number from 0 - 65535
+0000125C  363C 0000                211              move.w  #0,d3
+00001260  4EB9 000013C2            212              jsr     getRandom
+00001266  2413                     213              move.l  (a3),d2             ; move ship data into d2
+00001268  B2BC 00007FFF            214              cmp.l   #$7FFF,d1           ; compare result with 32767
+0000126E  6E00 000A                215              bgt     notHorizontal                
+00001272  84BC 00001000            216              or.l    #$00001000,d2       ; set horizontal bit
+00001278  4844                     217              swap    d4                  ; swap x y values in d4                      
+0000127A                           218  notHorizontal            
+0000127A  4241                     219              clr     d1
+0000127C  D244                     220              add.w   d4,d1               ; load x value
+0000127E  E949                     221              lsl.w   #4,d1               ; shift x value 
+00001280  4844                     222              swap    d4
+00001282  D244                     223              add.w   d4,d1
+00001284  E949                     224              lsl.w   #4,d1
+00001286  C4BC FFFFF00F            225              and.l   #$FFFFF00F,d2       ; clear old x y value
+0000128C  D481                     226              add.l   d1,d2
+0000128E  2682                     227              move.l  d2,(a3)             ; store ship data
+00001290                           228  
+00001290  4879 000017D8            229              pea     cmpShips   
+00001296  4879 00001740            230              pea     cmpGrid     
+0000129C  4EB9 0000151C            231              jsr     clearGrd
+000012A2  4EB9 00001400            232              jsr     shipsOnGrd
+000012A8  584F                     233              adda    #$4,a7
+000012AA  4A05                     234              tst.b   d5                  ; collision flag
+000012AC  6600 0008                235              bne     placeShipAgain
+000012B0  53B9 000017EC            236              subq.l  #1,selected
+000012B6                           237  placeShipAgain
+000012B6  4AB9 000017EC            238              tst.l   selected
+000012BC  6A00 FF4A                239              bpl     loadNextShip
+000012C0  4E58                     240              unlk    a0
+000012C2  4E75                     241              rts
+000012C4                           242  
+000012C4                           243  
+000012C4                           244  
+000012C4                           245  
+000012C4                           246  playRound   
+000012C4  2F3C 00000000            247              move.l  #0,-(SP)            ; make room on stack for return value
+000012CA  4EB9 000012D4            248              jsr     userInput
+000012D0  221F                     249              move.l  (SP)+,d1
+000012D2  4E75                     250              rts
+000012D4                           251  
+000012D4                           252  
+000012D4                           253  
+000012D4                           254  
+000012D4                           255  userInput    
+000012D4  4E50 0000                256              link    a0,#0
+000012D8  7809                     257              move.l  #9,d4               ; cursor limit d4
+000012DA  98A8 0008                258              sub.l   8(a0),d4            ; subtract ship size 
+000012DE  43F9 000017C0            259              lea     cursorPos,a1
+000012E4  4241                     260              clr     d1
+000012E6  4242                     261              clr     d2
+000012E8  4243                     262              clr     d3
+000012EA  1411                     263              move.b  (a1),d2             ; cursor x pos in d2
+000012EC  1629 0001                264              move.b  (1,a1),d3           ; cursor y pos in d3
+000012F0  103C 0005                265              move.b  #5,d0               ; listen for key press
+000012F4  4E4F                     266              trap    #15       
+000012F6  B23C 0077                267              cmp.b   #'w',d1
+000012FA  6700 0028                268              beq     cursorUp  
+000012FE  B23C 0073                269              cmp.b   #'s',d1
+00001302  6700 002C                270              beq     cursorDown 
+00001306  B23C 0061                271              cmp.b   #'a',d1
+0000130A  6700 0036                272              beq     cursorLeft 
+0000130E  B23C 0064                273              cmp.b   #'d',d1
+00001312  6700 003A                274              beq     cursorRight           
+00001316  1282                     275  inptEnd     move.b  d2,(a1)
+00001318  1343 0001                276              move.b  d3,(1,a1)
+0000131C  2141 0008                277              move.l  d1,8(a0)
+00001320  4E58                     278              unlk    a0
+00001322  4E75                     279              rts         
+00001324                           280  
+00001324  B63C 0000                281  cursorUp    cmp.b   #0,d3  
+00001328  6FEC                     282              ble     inptEnd
+0000132A  0643 FFFF                283              addi    #-1,d3
+0000132E  60E6                     284              bra     inptEnd
+00001330  4AA8 000C                285  cursorDown  tst.l   12(a0)              ; test v/h/ bit
+00001334  6700 0004                286              beq     dwnBndryChk     
+00001338  7809                     287              move.l  #9,d4               ; if ship is horizontal set downwards boundary to 9
+0000133A  B604                     288  dwnBndryChk cmp.b   d4,d3  
+0000133C  6CD8                     289              bge     inptEnd
+0000133E  5243                     290              addi    #1,d3
+00001340  60D4                     291              bra     inptEnd
+00001342  B43C 0000                292  cursorLeft  cmp.b   #0,d2  
+00001346  6FCE                     293              ble     inptEnd
+00001348  0642 FFFF                294              addi    #-1,d2
+0000134C  60C8                     295              bra     inptEnd
+0000134E  4AA8 000C                296  cursorRight tst.l   12(a0)              ; test v/h/ bit
+00001352  6600 0004                297              bne     rhtBndryChk     
+00001356  7809                     298              move.l  #9,d4               ; if ship is vertical set right boundary to 9
+00001358  B404                     299  rhtBndryChk cmp.b   d4,d2  
+0000135A  6CBA                     300              bge     inptEnd
+0000135C  5242                     301              addi    #1,d2
+0000135E  60B6                     302              bra     inptEnd
+00001360                           303              
+00001360                           304             
+00001360                           305  
+00001360                           306  
+00001360                           307  
+00001360                           308  gridRfrsh   
+00001360  2F05                     309              move.l  d5,-(SP)            ; push collision flag data onto stack
+00001362  45F9 000016DC            310              lea     plyrGrid,a2         ; load player grid
+00001368  2F3C 000000FA            311              move.l  #250,-(SP)          ; push y pos of grid on stack
+0000136E  4EB9 0000153A            312              jsr     drwGrid         
+00001374  584F                     313              adda    #$4,a7              ; increment stack pointer
+00001376                           314              
+00001376  45F9 00001740            315              lea     cmpGrid,a2          ; load computer player grid
+0000137C  2F3C 00000014            316              move.l  #20,-(a7)           ; push y pos of grid onto stack
+00001382  4EB9 0000153A            317              jsr     drwGrid
+00001388  584F                     318              adda    #$4,a7              ; increment stack pointer
+0000138A  2A1F                     319              move.l  (SP)+,d5            ; pop collison flag back in d5
+0000138C                           320   
+0000138C  0C39 0003 000017C2       321              cmp.b   #3,gameMode
+00001394  6600 001C                322              bne     noCursorTarget
+00001398  47F9 000017C0            323              lea     cursorPos,a3
+0000139E  2F3C 00000014            324              move.l  #20,-(SP)
+000013A4  1F13                     325              move.b  (a3),-(SP)
+000013A6  1F2B 0001                326              move.b  (1,a3),-(SP)
+000013AA  4EB9 000015B6            327              jsr     drawCursorTarget
+000013B0  504F                     328              adda    #$8,a7            
+000013B2                           329  noCursorTarget
+000013B2  4E75                     330              rts
+000013B4                           331   
+000013B4                           332  
+000013B4                           333  
+000013B4                           334  
+000013B4                           335      
+000013B4                           336      INCLUDE     Random.X68
+000013B4                           337  
+000013B4                           338  
+000013B4                           339  setSeed 
+000013B4  303C 0008                340          move.w  #8,d0           ; get hundredths of seconds since midnight
+000013B8  4E4F                     341          trap    #15             ;
+000013BA  33C1 000013F8            342          move.w  d1,seed         ; store low word as seed
+000013C0  4E75                     343          rts
+000013C2                           344  
+000013C2                           345              
+000013C2                           346  getRandom
+000013C2  4281                     347          clr.l   d1              ; 
+000013C4  3239 000013F8            348          move.w  seed,d1         ;
+000013CA  C2F9 000013FA            349          mulu    multiplier,d1   ; 
+000013D0  D2B9 000013FC            350          add.l   increment,d1    ;
+000013D6  82F9 000013FE            351          divu    modulus,d1      ;
+000013DC  4841                     352          swap    d1              ; 
+000013DE  33C1 000013F8            353          move.w  d1,seed         ; store result as next value
+000013E4  C2BC 0000FFFF            354          and.l   #$0000FFFF,d1   ; clear high word
+000013EA  82C2                     355          divu.w  d2,d1           ; divide by range parameter
+000013EC  4841                     356          swap    d1              ; swap to get remainder
+000013EE  D243                     357          add.w   d3,d1           ; add lower limit parameter
+000013F0  C2BC 0000FFFF            358          and.l   #$0000FFFF,d1   ; clear high word
+000013F6  4E75                     359          rts
+000013F8                           360         
+000013F8                           361  
+000013F8                           362  seed        ds.w    1
+000013FA= 08D0                     363  multiplier  dc.w    2256
+000013FC= 0002                     364  increment   dc.w    2
+000013FE= FFFF                     365  modulus     dc.w    $FFFF
+00001400                           366  
+00001400                           367  
+00001400                           368  
+00001400                           369  -------------------- end include --------------------
+00001400                           370      INCLUDE     Grid.X68
+00001400                           371  
+00001400                           372  
+00001400                           373  shipsOnGrd
+00001400  4E50 FFFC                374              link    a0,#-4
+00001404  217C 00000000 FFFC       375              move.l  #0,-4(a0)           ; counter variable
+0000140C  2868 000C                376              move.l  12(a0),a4
+00001410  2214                     377  nxtShip     move.l  (a4),d1             ; put ship data into d1
+00001412  C2BC 10000000            378              and.l   #$10000000,d1       ; bit mask to get show bit
+00001418  4A81                     379              tst.l   d1                  ; test to see whether to show ship or not   
+0000141A  6700 001E                380              beq     incShip             ; if not then skip
+0000141E  2239 000017EC            381              move.l  selected,d1
+00001424  B2A8 FFFC                382              cmp.l   -4(a0),d1           ; compare counter to selected 
+00001428  6700 0010                383              beq     incShip             ; skip selected ship
+0000142C  2F28 0008                384              move.l  8(a0),-(SP)         ; push grid parameter
+00001430  2F14                     385              move.l  (a4),-(SP)          ; push ship data onto stack
+00001432  4EB9 0000148C            386              jsr     addToGrid
+00001438  584F                     387              adda    #$4,a7   
+0000143A                           388              
+0000143A                           389                            
+0000143A  588C                     390  incShip     addq.l  #4,a4               ; increment array
+0000143C  52A8 FFFC                391              addq.l  #1,-4(a0)           ; decrement counter
+00001440  2228 FFFC                392              move.l  -4(a0),d1
+00001444  B27C 0005                393              cmp     #5,d1           
+00001448  66C6                     394              bne     nxtShip             ; if counter equals 5 then break
+0000144A  2868 000C                395              move.l  12(a0),a4
+0000144E  2239 000017EC            396              move.l  selected,d1
+00001454  C2FC 0004                397              mulu    #4,d1
+00001458  D9C1                     398              adda.l  d1,a4               ; selected ship data
+0000145A  2F28 0008                399              move.l  8(a0),-(SP)         ; push grid parameter
+0000145E  2F14                     400              move.l  (a4),-(SP)          ; push ship data onto stack
+00001460  4EB9 0000148C            401              jsr     addToGrid
+00001466  584F                     402              adda    #$4,a7
+00001468  4A05                     403              tst.b   d5                  ; collision detected flag
+0000146A  6700 001C                404              beq     noCollision
+0000146E  0294 FFF0FFFF            405              and.l   #$FFF0FFFF,(a4)     ; clear colour attribute
+00001474  0694 00040000            406              add.l   #$00040000,(a4)     ; set colour
+0000147A  2F28 0008                407              move.l  8(a0),-(SP)         ; push grid parameter
+0000147E  2F14                     408              move.l  (a4),-(SP)          ; push ship data onto stack
+00001480  4EB9 0000148C            409              jsr     addToGrid
+00001486  584F                     410              adda    #$4,a7
+00001488                           411  noCollision            
+00001488  4E58                     412              unlk    a0
+0000148A  4E75                     413              rts
+0000148C                           414  
+0000148C                           415  addToGrid   
+0000148C  4E50 FFF0                416              link    a0,#-16         
+00001490  2228 0008                417              move.l  8(a0),d1
+00001494  C2BC 00000F00            418              and.l   #$00000F00,d1       ; x pos bitmask
+0000149A  E089                     419              lsr.l   #$8,d1              ; shift bits right
+0000149C  2141 FFFC                420              move.l  d1,-4(a0)           ; store x value locally
+000014A0  2228 0008                421              move.l  8(a0),d1            ; 
+000014A4  C2BC 000000F0            422              and.l   #$000000F0,d1       ; y pos bitmask
+000014AA  E889                     423              lsr.l   #$4,d1              ; shift bits right
+000014AC  C2FC 000A                424              mulu    #10,d1              ; multiply by tiles in row
+000014B0  2141 FFF8                425              move.l  d1,-8(a0)           ; store y value locally
+000014B4  2228 0008                426              move.l  8(a0),d1    
+000014B8  C2BC 0000000F            427              and.l   #$0000000F,d1       ; length bitmask
+000014BE  5281                     428              addq.l  #1,d1
+000014C0  2141 FFF4                429              move.l  d1,-12(a0)          ; length value
+000014C4  2228 0008                430              move.l  8(a0),d1        
+000014C8  C2BC 00001000            431              and.l   #$00001000,d1       ; vertical/horizontal bitmask
+000014CE  E089                     432              lsr.l   #$8,d1
+000014D0  E889                     433              lsr.l   #$4,d1
+000014D2  1141 FFF3                434              move.b  d1,-13(a0)          ; v/h flag (true = vertical)
+000014D6  2228 0008                435              move.l  8(a0),d1
+000014DA  4841                     436              swap    d1
+000014DC  E909                     437              lsl.b   #4,d1
+000014DE  1141 FFF2                438              move.b  d1,-14(a0)          ; value to set grid tile to
+000014E2                           439              
+000014E2  2468 000C                440              move.l  12(a0),a2
+000014E6                           441     
+000014E6  2228 FFFC                442              move.l  -4(a0),d1
+000014EA  D2A8 FFF8                443              add.l   -8(a0),d1           ; add x and y values to get first tile                     
+000014EE  D5C1                     444              adda.l  d1,a2               ; get array index
+000014F0  4245                     445              clr     d5                  ; clear collision flag
+000014F2                           446  setTile     
+000014F2  4A05                     447              tst.b   d5                  ; if d5 is set then skip
+000014F4  6600 0006                448              bne     setValue            ; this avoids unsetting the collision flag on the next tile
+000014F8  4A12                     449              tst.b   (a2)                ; test the tile to see if anything already there
+000014FA  56C5                     450              sne     d5                  ; if tile not empty set d5
+000014FC                           451  setValue
+000014FC  14A8 FFF2                452              move.b  -14(a0),(a2)        ; set value of tile
+00001500  4A28 FFF3                453              tst.b   -13(a0)             ; test horizontal bit
+00001504  6700 0008                454              beq     incRow
+00001508  524A                     455              addq    #1,a2               ; increment the address counter by 1 (next column)
+0000150A  6000 0006                456              bra     cntnue
+0000150E  D4FC 000A                457  incRow      adda    #10,a2              ; inc address by 10 (next row)
+00001512  53A8 FFF4                458  cntnue      subq.l  #1,-12(a0)          ; decrement length variable
+00001516  66DA                     459              bne     setTile
+00001518                           460              
+00001518                           461              
+00001518                           462              * move.l  -12(a0),d1          ; push length value on stack
+00001518                           463              * move.w  d1,-(SP)
+00001518                           464              
+00001518                           465              * clr     d1
+00001518                           466              * move.b  -13(a0),d1          ; push horizontal flag on stack
+00001518                           467              * move.w  d1,-(SP)
+00001518                           468              
+00001518                           469              * move.l  -8(a0),d1           ; push y value on stack
+00001518                           470              * move.w  d1,-(SP)
+00001518                           471              * move.l  -4(a0),d1           ; push x value on stack
+00001518                           472              * move.w  d1,-(SP)
+00001518                           473              
+00001518                           474              * jsr     addMargin
+00001518                           475              * adda    #$8,a7                                    
+00001518                           476              
+00001518  4E58                     477              unlk    a0
+0000151A  4E75                     478              rts
+0000151C                           479  
+0000151C                           480  
+0000151C                           481  
+0000151C                           482  
+0000151C                           483  
+0000151C                           484  clearGrd    
+0000151C  4E50 0000                485              link    a0,#0
+00001520  2468 0008                486              move.l  8(a0),a2            ; load the player grid
+00001524  7200                     487              move.l  #0,d1               ; load counter into d1
+00001526                           488  clrGrdLoop  
+00001526  264A                     489              movea.l a2,a3
+00001528  D7C1                     490              adda.l  d1,a3
+0000152A  16BC 0000                491              move.b  #0,(a3)             ; move 0 into grid
+0000152E  5281                     492              addq.l  #1,d1               ; decrement counter
+00001530  B27C 0064                493              cmp     #100,d1
+00001534  66F0                     494              bne     clrGrdLoop          ; if equals 100 then break
+00001536  4E58                     495              unlk    a0
+00001538  4E75                     496              rts
+0000153A                           497  
+0000153A                           498  
+0000153A                           499  
+0000153A  282F 0004                500  drwGrid     move.l  4(a7),d4            ; starting lower y value
+0000153E  4245                     501              clr     d5                  ; row counter
+00001540  363C 0064                502  drwRow      move.w  #GRIDX,d3           ; starting x value
+00001544  3404                     503              move.w  d4,d2               ; move lower y value into upper y
+00001546  D879 000017A4            504              add.w   tileSize,d4         ; add tile size to lower y
+0000154C  4246                     505              clr     d6                  ; column counter
+0000154E  4EB9 0000155E            506              jsr     drwCol          
+00001554  5245                     507              addq    #1,d5               ; increment row counter
+00001556  BA7C 000A                508              cmp     #$a,d5
+0000155A  66E4                     509              bne     drwRow
+0000155C  4E75                     510              rts 
+0000155E                           511  
+0000155E  4EB9 0000157C            512  drwCol      jsr     fillRct
+00001564  3203                     513              move.w  d3,d1               ; move right x value into left xx
+00001566  D679 000017A4            514              add.w   tileSize,d3         ; add tile size to right x
+0000156C  303C 0057                515              move.w  #87,d0              ; draw rectangle
+00001570  4E4F                     516              trap    #15             
+00001572  5246                     517              addq    #1,d6               ; increment column counter
+00001574  BC7C 000A                518              cmp     #$a,d6
+00001578  66E4                     519              bne     drwCol
+0000157A  4E75                     520              rts           
+0000157C                           521  
+0000157C  4E50 FFFC                522  fillRct     link    a0,#-4
+00001580  47D2                     523              lea     (a2),a3             ; load grid
+00001582  1E39 000017A6            524              move.b  tileNum,d7          ; move 10 to d7 (number of tiles)
+00001588  CEC5                     525              mulu    d5,d7               ; multiply row counter with d7
+0000158A  DE06                     526              add.b   d6,d7               ; add column counter with d7
+0000158C  D6C7                     527              adda    d7,a3               ; add d7 to grid address
+0000158E  1153 0004                528              move.b  (a3),4(a0)          ; move value of a3 to local variable
+00001592  1E3C 00F0                529              move.b  #$F0,d7             ; put bit mask 11110000 into d7                       
+00001596  CE28 0004                530              and.b   4(a0),d7            ; and bit mask with tile data bits
+0000159A  8EFC 0010                531              divu    #$10,d7             ; shift bits right
+0000159E  CEFC 0004                532              mulu    #$4,d7              ; multiply by 4 to increment array of longs
+000015A2  47F9 000017A8            533              lea     tileclr,a3          ; load tile colour array address
+000015A8  D6C7                     534              adda    d7,a3               ; increment array  
+000015AA  2213                     535              move.l  (a3),d1             ; move selected colour into d1
+000015AC  103C 0051                536  fill        move.b  #81,d0              ; set fill colour
+000015B0  4E4F                     537              trap    #15 
+000015B2                           538              
+000015B2  4E58                     539              unlk    a0 
+000015B4  4E75                     540              rts
+000015B6                           541              
+000015B6                           542              
+000015B6                           543  
+000015B6                           544  
+000015B6                           545  drawCursorTarget
+000015B6                           546  
+000015B6  4E50 FFF8                547              link    a0,#-8
+000015BA                           548  
+000015BA  223C 00FF00FF            549              move.l  #FUCHSIA,d1
+000015C0  303C 0050                550              move    #80,d0
+000015C4  4E4F                     551              trap    #15
+000015C6                           552  
+000015C6                           553  
+000015C6  4241                     554              clr     d1
+000015C8  4242                     555              clr     d2
+000015CA  1228 000A                556              move.b  10(a0),d1           
+000015CE  C2F9 000017A4            557              mulu    tileSize,d1
+000015D4  0641 0064                558              add     #GRIDX,d1
+000015D8                           559  
+000015D8  1428 0008                560              move.b  8(a0),d2
+000015DC  C4F9 000017A4            561              mulu    tileSize,d2
+000015E2  D4A8 000C                562              add.l   12(a0),d2
+000015E6                           563  
+000015E6  2601                     564              move.l  d1,d3
+000015E8  2802                     565              move.l  d2,d4
+000015EA  D679 000017A4            566              add     tileSize,d3
+000015F0  D879 000017A4            567              add     tileSize,d4
+000015F6                           568  
+000015F6  303C 005B                569              move.w  #91,d0
+000015FA  4E4F                     570              trap    #15
+000015FC                           571  
+000015FC  2141 FFFC                572              move.l  d1,-4(a0)           ; store x values in local variable
+00001600  2143 FFF8                573              move.l  d3,-8(a0)
+00001604                           574  
+00001604  3239 000017A4            575              move    tileSize,d1
+0000160A  82FC 0002                576              divu    #2,d1
+0000160E  D2A8 FFFC                577              add.l   -4(a0),d1              
+00001612  3601                     578              move    d1,d3
+00001614                           579  
+00001614  303C 0054                580              move.w  #84,d0
+00001618  4E4F                     581              trap    #15
+0000161A                           582  
+0000161A  2228 FFFC                583              move.l  -4(a0),d1           ; restore x values
+0000161E  2628 FFF8                584              move.l  -8(a0),d3
+00001622                           585  
+00001622  2142 FFFC                586              move.l  d2,-4(a0)           ; store y values in local variable
+00001626  2144 FFF8                587              move.l  d4,-8(a0)
+0000162A                           588  
+0000162A  3439 000017A4            589              move    tileSize,d2
+00001630  84FC 0002                590              divu    #2,d2
+00001634  D4A8 FFFC                591              add.l   -4(a0),d2              
+00001638  3802                     592              move    d2,d4
+0000163A                           593  
+0000163A  303C 0054                594              move.w  #84,d0
+0000163E  4E4F                     595              trap    #15
+00001640                           596  
+00001640  223C 00FFFFFF            597              move.l  #WHITE,d1
+00001646  303C 0050                598              move    #80,d0
+0000164A  4E4F                     599              trap    #15
+0000164C                           600  
+0000164C  4E58                     601              unlk    a0
+0000164E  4E75                     602              rts
+00001650                           603  
+00001650                           604  
+00001650                           605  
+00001650                           606  addMargin
+00001650  4E50 FFF8                607              link    a0,#-8
+00001654  3228 0008                608              move.w  8(a0),d1            ; ship x
+00001658  3428 000A                609              move.w  10(a0),d2           ; ship y
+0000165C                           610              
+0000165C  5341                     611              subq.w  #1,d1            
+0000165E  3141 FFFE                612              move.w  d1,-2(a0)           ; store start x pos
+00001662  5342                     613              subq.w  #1,d2
+00001664                           614              
+00001664  3142 FFFC                615              move.w  d2,-4(a0)           ; store start y pos
+00001668  4A68 0008                616              tst.w   8(a0)               ; test the horizontal flag
+0000166C  6700 0016                617              beq     isVertical
+00001670  3228 000E                618              move.w  14(a0),d1           ; x counter 
+00001674  5441                     619              addq.w  #2,d1
+00001676  3141 FFFA                620              move.w  d1,-6(a0)           ; store x counter
+0000167A  317C 0002 FFF8           621              move.w  #2,-8(a0)           ; store y counter
+00001680  6000 0012                622              bra     addMarginToGrid
+00001684                           623  isVertical
+00001684  317C 0002 FFFA           624              move.w  #2,-6(a0)           ; store x counter
+0000168A  3428 000E                625              move.w  14(a0),d2
+0000168E  5442                     626              addq.w  #2,d2               ; y counter is length plus 2
+00001690  3142 FFF8                627              move.w  d2,-8(a0)           ; store y counter
+00001694                           628              
+00001694                           629  addMarginToGrid            
+00001694  43F9 00001740            630              lea     cmpGrid,a1
+0000169A  D2E8 FFFE                631              add.w   -2(a0),a1
+0000169E  3428 FFFC                632              move.w  -4(a0),d2           
+000016A2  C4FC 000A                633              mulu    #10,d2              ; multiply y by 10 to get row position
+000016A6  D2C2                     634              add.w   d2,a1               ; start x y position
+000016A8  3228 FFFA                635              move.w  -6(a0),d1           ; x counter
+000016AC                           636  addNextMargin
+000016AC  4A11                     637              tst.b   (a1)                ; if tile is not empty then skip
+000016AE  6700 0004                638              beq     addMarginCont
+000016B2  5251                     639              addq    #1,(a1)
+000016B4                           640  addMarginCont
+000016B4  12FC 0010                641              move.b  #$10,(a1)+
+000016B8  5341                     642              subq.w  #1,d1
+000016BA  6700 0008                643              beq     incrementRow 
+000016BE  60EC                     644              bra     addNextMargin  
+000016C0                           645  endOfLoop          
+000016C0  4E58                     646              unlk    a0
+000016C2  4E75                     647              rts
+000016C4                           648  
+000016C4                           649  incrementRow
+000016C4  4A68 FFF8                650              tst.w   -8(a0)
+000016C8  67F6                     651              beq     endOfLoop          
+000016CA  D2FC 000A                652              adda    #10,a1              ; add row
+000016CE  92E8 FFFA                653              suba    -6(a0),a1           ; set x back to start
+000016D2  3228 FFFA                654              move.w  -6(a0),d1           ; reset x counter
+000016D6  5368 FFF8                655              subq.w  #1,-8(a0)           ; decrement row counter
+000016DA  60D0                     656              bra     addNextMargin
+000016DC                           657   
+000016DC                           658   
+000016DC                           659  
+000016DC= 00 00 00 00 00 00 ...    660  plyrGrid    dc.b    0,0,0,0,0,0,0,0,0,0
+000016E6= 00 00 00 00 00 00 ...    661              dc.b    0,0,0,0,0,0,0,0,0,0
+000016F0= 00 00 00 00 00 00 ...    662              dc.b    0,0,0,0,0,0,0,0,0,0
+000016FA= 00 00 00 00 00 00 ...    663              dc.b    0,0,0,0,0,0,0,0,0,0
+00001704= 00 00 00 00 00 00 ...    664              dc.b    0,0,0,0,0,0,0,0,0,0
+0000170E= 00 00 00 00 00 00 ...    665              dc.b    0,0,0,0,0,0,0,0,0,0
+00001718= 00 00 00 00 00 00 ...    666              dc.b    0,0,0,0,0,0,0,0,0,0
+00001722= 00 00 00 00 00 00 ...    667              dc.b    0,0,0,0,0,0,0,0,0,0
+0000172C= 00 00 00 00 00 00 ...    668              dc.b    0,0,0,0,0,0,0,0,0,0
+00001736= 00 00 00 00 00 00 ...    669              dc.b    0,0,0,0,0,0,0,0,0,0
+00001740                           670  
+00001740= 00 00 00 00 00 00 ...    671  cmpGrid     dc.b    0,0,0,0,0,0,0,0,0,0
+0000174A= 00 00 00 00 00 00 ...    672              dc.b    0,0,0,0,0,0,0,0,0,0
+00001754= 00 00 00 00 00 00 ...    673              dc.b    0,0,0,0,0,0,0,0,0,0
+0000175E= 00 00 00 00 00 00 ...    674              dc.b    0,0,0,0,0,0,0,0,0,0
+00001768= 00 00 00 00 00 00 ...    675              dc.b    0,0,0,0,0,0,0,0,0,0
+00001772= 00 00 00 00 00 00 ...    676              dc.b    0,0,0,0,0,0,0,0,0,0
+0000177C= 00 00 00 00 00 00 ...    677              dc.b    0,0,0,0,0,0,0,0,0,0
+00001786= 00 00 00 00 00 00 ...    678              dc.b    0,0,0,0,0,0,0,0,0,0
+00001790= 00 00 00 00 00 00 ...    679              dc.b    0,0,0,0,0,0,0,0,0,0
+0000179A= 00 00 00 00 00 00 ...    680              dc.b    0,0,0,0,0,0,0,0,0,0
+000017A4                           681  
+000017A4                           682  
+000017A4  =00000064                683  GRIDX       equ     100
+000017A4= 0014                     684  tileSize    dc.w    20
+000017A6= 0A                       685  tileNum     dc.b    10
+000017A7                           686  
+000017A7                           687  
+000017A8= 00000000 00808080 ...    688  tileclr     dc.l    BLACK,GRAY,AQUA,YELLOW,RED,GREEN
+000017C0                           689  
+000017C0  =00000000                690  BLACK       equ     $00000000 
+000017C0  =00000080                691  MAROON      equ     $00000080 
+000017C0  =00008000                692  GREEN       equ     $00008000 
+000017C0  =00008080                693  OLIVE       equ     $00008080 
+000017C0  =00800000                694  NAVY        equ     $00800000 
+000017C0  =00800080                695  PURPLE      equ     $00800080 
+000017C0  =00808000                696  TEAL        equ     $00808000 
+000017C0  =00808080                697  GRAY        equ     $00808080 
+000017C0  =000000FF                698  RED         equ     $000000FF 
+000017C0  =0000FF00                699  LIME        equ     $0000FF00 
+000017C0  =0000FFFF                700  YELLOW      equ     $0000FFFF 
+000017C0  =00FF0000                701  BLUE        equ     $00FF0000 
+000017C0  =00FF00FF                702  FUCHSIA     equ     $00FF00FF 
+000017C0  =00FFFF00                703  AQUA        equ     $00FFFF00 
+000017C0  =00C0C0C0                704  LTGRAY      equ     $00C0C0C0 
+000017C0  =00FFFFFF                705  WHITE       equ     $00FFFFFF 
+000017C0                           706  
+000017C0                           707  
+000017C0                           708  
+000017C0                           709  
+000017C0                           710  -------------------- end include --------------------
+000017C0                           711      
+000017C0= 00 00                    712  cursorPos   dc.b    0,0
+000017C2                           713  
+000017C2= 00                       714  gameMode    dc.b    0           ; 0: setup, 1: play mode
+000017C3                           715  
+000017C3                           716  
+000017C3                           717  
+000017C4= 00020001 00020001 ...    718  plyrShips   dc.l    $00020001,$00020001,$00020002,$00020003,$00020004
+000017D8= 00020001 00020101 ...    719  cmpShips    dc.l    $00020001,$00020101,$00020202,$00020303,$00020404
+000017EC= 00000004                 720  selected    dc.l    $00000004
+000017F0                           721  
+000017F0                           722  
+000017F0                           723  
+000017F0= 50 72 65 73 73 20 ...    724  beginMsg    dc.b    'Press "y" to begin or "n" to move ships',0
+00001818= 53 74 61 72 74 00        725  startMsg    dc.b    'Start',0
+0000181E                           726      
+0000181E                           727      END    START        ; last line of source
+0000181E                           728  -------------------- end include --------------------
+
+No errors detected
+No warnings generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+ADDMARGIN           1650
+ADDMARGINCONT       16B4
+ADDMARGINTOGRID     1694
+ADDNEXTMARGIN       16AC
+ADDTOGRID           148C
+AQUA                FFFF00
+BACKTOSETUP         11D0
+BEGIN               119E
+BEGINGAME           11E2
+BEGINMESSAGE        1056
+BEGINMSG            17F0
+BLACK               0
+BLUE                FF0000
+CLEARGRD            151C
+CLRGRDLOOP          1526
+CMPGRID             1740
+CMPSETUP            105E
+CMPSHIPS            17D8
+CNTNUE              1512
+COMPUTERSETUP       1204
+CURSORDOWN          1330
+CURSORLEFT          1342
+CURSORPOS           17C0
+CURSORRIGHT         134E
+CURSORUP            1324
+DRAWCURSORTARGET    15B6
+DRWCOL              155E
+DRWGRID             153A
+DRWROW              1540
+DWNBNDRYCHK         133A
+ENDOFLOOP           16C0
+FILL                15AC
+FILLRCT             157C
+FUCHSIA             FF00FF
+GAMECONTD           1046
+GAMELOOP            1016
+GAMEMODE            17C2
+GETRANDOM           13C2
+GRAY                808080
+GREEN               8000
+GRIDRFRSH           1360
+GRIDX               64
+INCREMENT           13FC
+INCREMENTROW        16C4
+INCROW              150E
+INCSHIP             143A
+INPTEND             1316
+ISVERTICAL          1684
+LIME                FF00
+LOADNEXTSHIP        1208
+LTGRAY              C0C0C0
+MAROON              80
+MODULUS             13FE
+MULTIPLIER          13FA
+NAVY                800000
+NOCOLLISION         1488
+NOCRSRLFT           10DC
+NOCRSRUP            10F0
+NOCURSORTARGET      13B2
+NOROTATE            10F8
+NORSETINDEX         1122
+NOSHIPINC           116A
+NOTHORIZONTAL       127A
+NXTSHIP             1410
+OLIVE               8080
+PLACESHIPAGAIN      12B6
+PLAYMODE            106C
+PLAYROUND           12C4
+PLYRGRID            16DC
+PLYRSHIPS           17C4
+PURPLE              800080
+RED                 FF
+RHTBNDRYCHK         1358
+SEED                13F8
+SELECTED            17EC
+SETSEED             13B4
+SETTILE             14F2
+SETUP               1074
+SETUPCONTINUED      1180
+SETUPMODE           104E
+SETVALUE            14FC
+SHIPSONGRD          1400
+START               1000
+STARTMSG            1818
+TEAL                808000
+TILECLR             17A8
+TILENUM             17A6
+TILESIZE            17A4
+USERINPUT           12D4
+WHITE               FFFFFF
+YELLOW              FFFF
