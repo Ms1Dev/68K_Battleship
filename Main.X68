@@ -1,4 +1,8 @@
-  
+*-----------------------------------------------------------
+*
+* Include file for Battleship.X68
+* 
+*-----------------------------------------------------------
 
 * Game loop
 
@@ -13,6 +17,7 @@ gameLoop    cmp.b   #0,gameMode
 gameContd   
             jsr     gridRfrsh
             bra     gameLoop
+
 setupMode   
             jsr     setup
             bra     gameContd
@@ -113,12 +118,13 @@ noShipInc
             and.l   #$FFFF000F,(a3)     ; clear x,y old data
             add.l   d1,(a3)             ; add new x,y data
 setupContinued
+            move.l  selected,-(SP)      ; selected ship
             move.l  #0,-(SP)            ; computer player flag
             pea     plyrShips   
             pea     plyrGrid     
             jsr     clearGrd           
             jsr     shipsOnGrd
-            adda    #$8,a7              
+            adda    #$10,a7              
             unlk    a0
             rts
  
@@ -161,9 +167,10 @@ beginGame
 
 
 computerSetup
-            link    a0,#0
+            
     * load selected ship
-loadNextShip  
+loadNextShip
+            link    a0,#0
             lea     cmpShips,a3         ; select ship data from array
             move.l  selected,d1
             mulu    #4,d1
@@ -209,19 +216,22 @@ notHorizontal
             add.l   d1,d2
             move.l  d2,(a3)             ; store ship data
             
+            move.l  selected,-(SP)      ; selected ship
             move.l  #1,-(SP)            ; computer player flag
             pea     cmpShips   
             pea     cmpGrid     
             jsr     clearGrd
             jsr     shipsOnGrd
-            adda    #$8,a7
+            adda    #$10,a7
             tst.b   d5                  ; collision flag
             bne     placeShipAgain
             subq.l  #1,selected
 placeShipAgain
-            tst.l   selected
-            bpl     loadNextShip
             unlk    a0
+            tst.l   selected
+            
+            bpl     loadNextShip
+            
             rts
 
 
@@ -230,9 +240,60 @@ placeShipAgain
 
 playRound   
             move.l  #0,-(SP)            ; make room on stack for return value
-            jsr     userInput
-            move.l  (SP)+,d1
+            jsr     userInput           ; get user input
+            move.l  (SP)+,d1            ; put return value into d1
+
+            cmp.b   #'f',d1             ; if key f is pressed then fire shot
+            bne     continueRound       
+            lea     cursorPos,a3        ; load cursor position
+            clr     d2                  ; clear registers
+            clr     d3
+            move.b  (a1),d2             ; move x into d2
+            move.b  (1,a1),d3           ; move y into d3
+            move.l  #0,-(SP)            ; push computer player flag onto stack
+            move.w  d3,-(SP)            ; push y value 
+            move.w  d2,-(SP)            ; push x value
+            jsr     shootTile           ; call shoot tile subroutine
+            move.l  (SP)+,d1            ; get return value 
+            adda    #$4,a7              ; increment stack pointer
+
+            cmp.w   #$FFFE,d1           ; if return value is -2 then shot was on invalid tile
+            beq     invalidTile
+            cmp.w   #$FFFF,d1           ; if return value is -1 then shot was a miss
+            beq     missedShot
+
+            lea     cmpShips,a2         ; else return value is a ship id
+            mulu    #$4,d1              ; multiply chip id for increment 
+            adda    d1,a2               ; add to ship array
+
+            move.l  (a2),d1             ; load ship data into d1
+            move.l  d1,d2
+
+            and.l   #$00000F00,d1
+            lsr.l   #8,d1               ; shift x value into lsb
+            and.l   #$000000F0,d2
+            lsr.l   #4,d2               ; shift y value into lsb
+            add     d2,d1               ; ship x + y value
+            clr     d2  
+            move.b  (a3),d2             ; cursor x value
+            add.b   (1,a3),d2           ; cursor x + y value
+            sub     d1,d2               ; subtract ship x y from cursor x y to leave position ship is hit
+
+            move.l  #1,d1               ; load bit into d1
+            lsl.l   d2,d1               ; shift by value of the hit position
+            lsl.l   #4,d1               ; shift further 4 bits
+            swap    d1
+            or.l    d1,(a2)             ; add the hit position to the ship data
+
+missedShot
+
+            * next player
+invalidTile
+
+            * repeat for same player
+continueRound
             rts
+
 
 
 
@@ -249,7 +310,14 @@ userInput
             move.b  (a1),d2             ; cursor x pos in d2
             move.b  (1,a1),d3           ; cursor y pos in d3
             move.b  #5,d0               ; listen for key press
-            trap    #15       
+            trap    #15
+* convert to lower case if upper case
+            cmp.b   #'A',d1             
+            blt     notUpperCase
+            cmp.b   #'Z',d1
+            bgt     notUpperCase
+            addi.b  #$20,d1
+notUpperCase              
             cmp.b   #'w',d1
             beq     cursorUp  
             cmp.b   #'s',d1
@@ -264,6 +332,7 @@ inptEnd     move.b  d2,(a1)
             move.l  d1,8(a0)
             unlk    a0
             rts         
+
 
 * change cursor value within limits *
 cursorUp    cmp.b   #0,d3  
@@ -321,7 +390,6 @@ noCursorTarget
             rts
  
 
-
 *----------------------------------------------------------------------------------
 
     
@@ -334,26 +402,20 @@ gameMode    dc.b    0           ; 0: setup, 1: play mode
 
 
 * Ship data
-*   S|0|0|0|0|0|0|0|0|0|0|0|C|C|C|C|0|0|0|V|X|X|X|X|Y|Y|Y|Y|L|L|L|L
+*   S|0|0|0|0|0|0|H|H|H|H|H|C|C|C|C|0|0|0|V|X|X|X|X|Y|Y|Y|Y|L|L|L|L
 *
 *   S: Show ship flag
 *   0: Unused
+*   H: Ship hit location
 *   C: Colour of ship
 *   V: Vertical flag
 *   X: X pos
 *   Y: Y pos
 *   L: Ship length/lives
 
-plyrShips   dc.l    $00020001,$00020001,$00020002,$00020003,$00020004
-cmpShips    dc.l    $00020001,$00020101,$00020202,$00020303,$00020404
+plyrShips   dc.l    $00020001,$00020002,$00020002,$00020003,$00020004
+cmpShips    dc.l    $00020001,$00020102,$00020202,$00020303,$00020404
 selected    dc.l    $00000004
-
-*   Tile data is stored as follows
-*   
-*   Data: C|N
-*       
-*       C: Colour
-*       N: Ship ID
 
 
 beginMsg    dc.b    'Press "y" to begin or "n" to move ships',0

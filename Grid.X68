@@ -1,3 +1,8 @@
+*-----------------------------------------------------------
+*
+* Include file for Battleship.X68
+* 
+*-----------------------------------------------------------
 
 
 * add ships to grid *
@@ -10,13 +15,15 @@ nxtShip     move.l  (a4),d1             ; put ship data into d1
             and.l   #$10000000,d1       ; bit mask to get show bit
             tst.l   d1                  ; test to see whether to show ship or not   
             beq     incShip             ; if not then skip
-            move.l  selected,d1
+            move.l  20(a0),d1
             cmp.l   -4(a0),d1           ; compare counter to selected 
             beq     incShip             ; skip selected ship
+
+            move.l  -4(a0),-(SP)        ; push ship id onto stack
             move.l  8(a0),-(SP)         ; push grid parameter
             move.l  (a4),-(SP)          ; push ship data onto stack
             jsr     addToGrid
-            adda    #$4,a7   
+            adda    #$C,a7   
                           
 incShip     addq.l  #4,a4               ; increment array
             addq.l  #1,-4(a0)           ; decrement counter
@@ -24,25 +31,30 @@ incShip     addq.l  #4,a4               ; increment array
             cmp     #5,d1           
             bne     nxtShip             ; if counter equals 5 then break
             move.l  12(a0),a4
-            move.l  selected,d1
+            move.l  20(a0),d1
+            
             mulu    #4,d1
             adda.l  d1,a4               ; selected ship data
+            move.l  20(a0),-(SP)         ; push ship id onto stack
             move.l  8(a0),-(SP)         ; push grid parameter
             move.l  (a4),-(SP)          ; push ship data onto stack
             jsr     addToGrid
-            adda    #$4,a7
+            adda    #$C,a7
             tst.b   d5                  ; collision detected flag
             beq     noCollision
 * if collision colour ship red and add to grid *
             and.l   #$FFF0FFFF,(a4)     ; clear colour attribute
             add.l   #$00040000,(a4)     ; set colour
-            move.l  8(a0),-(SP)         ; push grid parameter
+            move.l  20(a0),-(SP)        ; push ship id onto stack
+            move.l  8(a0),-(SP)         ; push grid address parameter
             move.l  (a4),-(SP)          ; push ship data onto stack
             jsr     addToGrid
-            adda    #$4,a7
+            adda    #$C,a7
 noCollision            
             unlk    a0
             rts
+
+
 
 addToGrid   
             link    a0,#-16         
@@ -65,12 +77,15 @@ addToGrid
             lsr.l   #$4,d1
             move.b  d1,-13(a0)          ; v/h flag (true = vertical)
             move.l  8(a0),d1
-            swap    d1
-            lsl.b   #4,d1
-            move.b  d1,-14(a0)          ; value to set grid tile to
-            
-            move.l  12(a0),a2
-   
+            swap    d1                  ; swap to get colour attribute
+            lsl.b   #4,d1                 
+
+            move.l  16(a0),d2           ; move ship index to d2
+            addq.b  #1,d2               ; add 1 to array index to get actual id
+            add.b   d2,d1
+
+            move.b  d1,-14(a0)          ; value to set grid tile to           
+            move.l  12(a0),a2 
             move.l  -4(a0),d1
             add.l   -8(a0),d1           ; add x and y values to get first tile                     
             adda.l  d1,a2               ; get array index
@@ -91,30 +106,22 @@ incRow      adda    #10,a2              ; inc address by 10 (next row)
 cntnue      subq.l  #1,d1               ; decrement length variable
             bne     setTile
             tst     d3
-            beq     noMargin
-            
+            beq     noMargin         
             move.l  -12(a0),d1          ; push length value on stack
             move.w  d1,-(SP)
-            
             clr     d1
             move.b  -13(a0),d1          ; push horizontal flag on stack
-            move.w  d1,-(SP)
-            
+            move.w  d1,-(SP)       
             move.l  -8(a0),d1           ; push y value on stack
             divu    #10,d1
             move.w  d1,-(SP)
             move.l  -4(a0),d1           ; push x value on stack
-            move.w  d1,-(SP)
-            
+            move.w  d1,-(SP)       
             jsr     addMargin
             adda    #$8,a7                                    
-  
 noMargin         
             unlk    a0
             rts
-
-*-----------------------------------------------------------------------------------
-
 
 
 *-----------------------------------------------------------------------------------
@@ -194,7 +201,6 @@ drawCursorTarget
             move.l  #FUCHSIA,d1
             move    #80,d0
             trap    #15
-
 
             clr     d1
             clr     d2
@@ -329,29 +335,90 @@ incrementRow
             beq     endOfLoop  
             bra     addNextMargin
  
+*----------------------------------------------------------------------------------------------
+
+
+shootTile
+            link    a0,#0
+            tst.l   12(a0)
+            beq     loadCompGrid
+            lea     plyrGrid,a1
+            bra     contShootTile
+loadCompGrid
+            lea     cmpGrid,a1
+contShootTile
+            
+            move.w  8(a0),d1            ; x 
+            move.w  10(a0),d2           ; y
+
+            mulu    #10,d2
+            add     d2,d1
+
+            adda    d1,a1               ; get tile
+
+            clr     d3
+            move.b  (a1),d3
+            and.b   #$0F,d3
+
+            cmp.b   #$F,d3              ; tile already hit
+            beq     alreadyHit
+            tst.b   d3
+            beq     shotMissed
+* hit ship
+            subq.b  #1,d3
+            move.l  d3,8(a0)            ; return ship id
+            move.b  #$3F,(a1)           ; set tile colour
+            bra     shootTileEnd
+
+alreadyHit  
+            move.l  #$0000FFFE,8(a0)    ; return invalid code
+            bra     shootTileEnd
+shotMissed
+            move.l  #$0000FFFF,8(a0)    ; return missed shot code
+            move.b  #$6F,(a1)           ; set tile colour
+
+            bra shootTileEnd
+
+shootTileEnd
+            unlk    a0
+            rts
+
+
+
+
  
+*----------------------------------------------------------------------------------------------
 
-plyrGrid    dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
 
-cmpGrid     dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
-            dc.b    0,0,0,0,0,0,0,0,0,0
+*   Tile data is stored as 1 byte of memory in 2d array
+*   
+*       C|C|C|C|H|N|N|N
+*       
+*       C: Tile Colour
+*       H: Is hit
+*       N: Ship ID
+
+plyrGrid    dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+
+cmpGrid     dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
+            dc.b    00,00,00,00,00,00,00,00,00,00
 
 
 GRIDX       equ     100
@@ -359,7 +426,7 @@ tileSize    dc.w    20
 tileNum     dc.b    10
 
 
-tileclr     dc.l    BLACK,GRAY,AQUA,YELLOW,RED,GREEN
+tileclr     dc.l    BLACK,GRAY,AQUA,YELLOW,RED,GREEN,PURPLE
 
 BLACK       equ     $00000000 
 MAROON      equ     $00000080 
