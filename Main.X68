@@ -52,7 +52,8 @@ setup
             move.l  (a3),d2             ; move ship data into d2
             or.l    #$10000000,d2       ; set the show bit 
             move.l  d2,(a3)
-            and.l   #$0000000F,d2       ; get length attribute         
+            and.l   #$0000000F,d2       ; get length attribute
+            subq.l  #1,d2       
             move.l  d2,(a0)             ; store length attribute in variable              
 
             move.l  (a3),d3             ; move ship data into d3
@@ -180,6 +181,7 @@ loadNextShip
     * get random x y pos
             move.l  (a3),d4             ; move ship data into d2
             and.l   #$0000000F,d4       ; get length attribute
+            subq.l  #1,d4  
             clr     d2
             clr     d3        
             move.w  #10,d2              ; load grid size
@@ -284,6 +286,7 @@ playRound
             lsl.l   #4,d1               ; shift further 4 bits
             swap    d1
             or.l    d1,(a2)             ; add the hit position to the ship data
+            subq.l  #1,(a2)             ; decrement lives of ship
 
 missedShot
 
@@ -389,6 +392,173 @@ gridRfrsh
 noCursorTarget
             rts
  
+*----------------------------------------------------------------------------------
+
+* computer turn
+
+*   get hit array length
+
+computerTurn
+            move.l  #5,-(SP)            ; hit array length
+            pea     hitArray            ; hit array address
+            jsr     arrayLength         ; get number indexes used in array
+            move.l  (SP)+,d1            ; return value
+            adda    #$4,a7              ; increment stack pointer
+
+            cmp.l   #1,d1               ; test array length against 1
+            bmi     noPreviousHits      ; if negative then there are no hits in array
+            beq     onePrevHit          ; if equal then one hit in array
+
+onePrevHit   
+            lea     hitArray,a1
+            move.l  (a1),d1             ; load x y of previous shot
+            swap    d1
+            addq.w  #1,d1               ; increase x value (tile above)
+            cmp.w   #9,d1
+            
+            bgt     tileLeft           ; if out of bounds go to next tile
+            swap    d1
+            move.l  d1,-(SP)
+            jsr     getTileValue
+            move.l  (SP)+,d2
+            and.b   #$08,d2             ; get hit flag from tile value
+            bne     tileLeft
+            lea     posShots,a3
+            move.l  d1,(a3)+            ; add coord to possible shots
+tileLeft
+            swap    d1
+            subq.w  #2,d1
+            cmp.w   #0,d1
+            
+            blt     tileBelow
+            swap    d1
+            move.l  d1,-(SP)
+            jsr     getTileValue
+            move.l  (SP)+,d2
+            and.b   #$08,d2             ; get hit flag from tile value
+            bne     tileBelow
+            move.l  d1,(a3)+            ; add coord to possible shots
+
+tileBelow
+            swap    d1
+            addq.w  #1,d1
+            swap    d1
+            addq.w  #1,d1               ; add to get right tile
+            cmp.w   #9,d1
+            bgt     tileAbove
+            move.l  d1,-(SP)
+            jsr     getTileValue
+            move.l  (SP)+,d2
+            and.b   #$08,d2             ; get hit flag from tile value
+            bne     tileAbove
+            move.l  d1,(a3)+            ; add coord to possible shots
+
+tileAbove
+            subq.w  #2,d1               ; add to get right tile
+            cmp.w   #0,d1
+            blt     randomPosShot
+            move.l  d1,-(SP)
+            jsr     getTileValue
+            move.l  (SP)+,d2
+            and.b   #$08,d2             ; get hit flag from tile value
+            bne     randomPosShot
+            move.l  d1,(a3)+            ; add coord to possible shots
+
+
+
+
+
+
+noPreviousHits
+            * get random shot
+
+
+multipleHits
+
+*   if 0 then random shot
+*   load plyr grid
+
+
+randomPosShot
+            move.l  #4,-(SP)            ; hit array length
+            pea     posShots            ; hit array address
+            jsr     arrayLength         ; get number indexes used in array
+            move.l  (SP)+,d2            ; return value
+            adda    #$4,a7              ; increment stack pointer
+            move.l  #0,d3
+            jsr     getRandom
+            lea     posShots,a1
+            move.l  (a1,d1),d1          ; move xy value into d1
+            bra     takeShot
+
+
+
+takeShot
+            move.l  #1,-(SP)
+            move.l  d1,-(SP)
+            jsr     shootTile
+            move.l  (SP)+,d1            ; get return value 
+            adda    #$4,a7              ; increment stack pointer
+
+
+*   get length of possible shot array
+*   if length > 1 use random number between 0 and length to pick random target
+*   clear possible shot array
+
+*   if 2+
+*   cmp coord1 x with coord2 x
+*   if equal then ship is vertical
+*   load x into d1
+*   get minimum y in array load into d2 and sub 1
+*   get maximum y in array load into d3 and add 1
+*   check x,y1 and x,y2 on grid, if empty add to possible shot array
+*   get length of possible shot array
+*   if length > 1 use random number between 0 and length to pick random target
+*   clear possible shot array
+
+*   take shot
+*   if miss do nothing
+*   else
+*       if destroyed clear hit array
+*       else add coordinate to hit array
+*
+*   end turn
+
+
+
+
+* random shot
+
+*   get random x and y
+*   get length of smallest enemy ship remaining
+*   check smallest ship can fit in coordinate given
+*   if it can return coordinate
+*   else find another coordinatea      
+
+
+*----------------------------------------------------------------------------------
+
+* parameters: array address, array total length (long)
+* return used array length (long)
+
+arrayLength
+            link    a0,#-4
+            move.l  8(a0),a1        ; array address parameter
+            move.l  12(a0),d1       ; array size parameter
+            move.l  #0,-4(a0)       ; counter local variable
+nextIndex            
+            move.l  (a1)+,d2        ; move array value into d1
+            cmp.l   #$FFFFFFFF,d2   ; check if d2 is empty
+            beq     endOfArray
+            addq.l  #1,-4(a0)       ; increment counter
+            cmp.l   -4(a0),d1       ; compare with array length
+            beq     endOfArray      ; if equal to size then reached end of array
+            bra     nextIndex
+endOfArray
+            move.l  -4(a0),8(a0)
+            unlk    a0
+            rts
+
 
 *----------------------------------------------------------------------------------
 
@@ -413,9 +583,13 @@ gameMode    dc.b    0           ; 0: setup, 1: play mode
 *   Y: Y pos
 *   L: Ship length/lives
 
-plyrShips   dc.l    $00020001,$00020002,$00020002,$00020003,$00020004
-cmpShips    dc.l    $00020001,$00020102,$00020202,$00020303,$00020404
+plyrShips   dc.l    $00020002,$00020003,$00020003,$00020004,$00020005
+cmpShips    dc.l    $00020002,$00020103,$00020203,$00020304,$00020405
 selected    dc.l    $00000004
+
+
+hitArray    dc.l    $00040003,$FFFFFFFF,$FFFFFFFF,$FFFFFFFF,$FFFFFFFF
+posShots    ds.l    4
 
 
 beginMsg    dc.b    'Press "y" to begin or "n" to move ships',0

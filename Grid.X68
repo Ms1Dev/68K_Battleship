@@ -69,7 +69,8 @@ addToGrid
             move.l  d1,-8(a0)           ; store y value locally
             move.l  8(a0),d1    
             and.l   #$0000000F,d1       ; length bitmask
-            addq.l  #1,d1
+            * subq.l  #1,d1
+            * addq.l  #1,d1
             move.l  d1,-12(a0)          ; length value
             move.l  8(a0),d1        
             and.l   #$00001000,d1       ; vertical/horizontal bitmask
@@ -384,7 +385,20 @@ shootTileEnd
             rts
 
 
+ 
+*----------------------------------------------------------------------------------------------
 
+
+getTileValue
+            link    a0,#-4
+            lea     plyrGrid,a2
+            move.w  10(a0),d2            ; move coordinate parimeter into d2
+            mulu    #10,d2              ; multiply y by 10 for row
+            add.w   8(a0),d2           ; add x for column
+            move.l  #0,8(a0)            ; clear return value
+            move.b  (a2,d2),11(a0)      ; push byte onto stack
+            unlk    a0
+            rts
 
  
 *----------------------------------------------------------------------------------------------
