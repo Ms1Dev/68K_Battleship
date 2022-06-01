@@ -20,6 +20,9 @@
 *   D2 + D3 should not be greater than 65535
 
 
+* TODO: For some reason if range is a multiple of 3 then results become very predictable
+
+
 setSeed 
         move.w  #8,d0           ; get hundredths of seconds since midnight
         trap    #15             ;

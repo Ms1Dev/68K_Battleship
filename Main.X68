@@ -265,9 +265,37 @@ playRound
             beq     missedShot
 
             lea     cmpShips,a2         ; else return value is a ship id
-            mulu    #$4,d1              ; multiply chip id for increment 
-            adda    d1,a2               ; add to ship array
+            mulu    #4,d1
+            adda.l  d1,a2
+            move.l  a2,-(SP)            ; push ship address onto stack
+            clr     d2
+            move.b  (a3),d2
+            swap    d2
+            move.b  (1,a3),d2
+            move.l  d2,-(SP)
+            jsr     shipIsHit
+            adda    #$8,a7
 
+missedShot
+
+            * next player
+invalidTile
+
+            * repeat for same player
+continueRound
+
+            jsr     computerTurn
+
+            rts
+
+
+*------------------------------------------------------------------------
+
+
+shipIsHit
+            link    a0,#0
+            move.l  12(a0),a2            ; ship address
+            move.l  8(a0),d3           ; x y coord
             move.l  (a2),d1             ; load ship data into d1
             move.l  d1,d2
 
@@ -277,8 +305,9 @@ playRound
             lsr.l   #4,d2               ; shift y value into lsb
             add     d2,d1               ; ship x + y value
             clr     d2  
-            move.b  (a3),d2             ; cursor x value
-            add.b   (1,a3),d2           ; cursor x + y value
+            move.w  d3,d2               ; cursor x value
+            swap    d3
+            add.b   d3,d2               ; cursor x + y value
             sub     d1,d2               ; subtract ship x y from cursor x y to leave position ship is hit
 
             move.l  #1,d1               ; load bit into d1
@@ -287,16 +316,11 @@ playRound
             swap    d1
             or.l    d1,(a2)             ; add the hit position to the ship data
             subq.l  #1,(a2)             ; decrement lives of ship
-
-missedShot
-
-            * next player
-invalidTile
-
-            * repeat for same player
-continueRound
+            move.l  (a2),d1
+            and.l   #$0000000F,d1
+            move.l  d1,8(a0)            ; return value
+            unlk    a0
             rts
-
 
 
 
@@ -399,6 +423,7 @@ noCursorTarget
 *   get hit array length
 
 computerTurn
+            link    a0,#-4
             move.l  #5,-(SP)            ; hit array length
             pea     hitArray            ; hit array address
             jsr     arrayLength         ; get number indexes used in array
@@ -409,8 +434,94 @@ computerTurn
             bmi     noPreviousHits      ; if negative then there are no hits in array
             beq     onePrevHit          ; if equal then one hit in array
 
+
+* multipleHits
+
+        
+            move.l  #$000F000F,d2       ; min coord
+            clr.l   d3                  ; max coord
+            clr.l   d4
+
+            lea     hitArray,a1         ; start address
+            move.l  a1,a2
+            adda    #$10,a2             ; end address
+
+* get min and max coords from hit array     
+            for.l   a1 = a1 to a2 by #$4 do
+                move.l  (a1),d4
+
+                cmp.l   #$FFFFFFFF,d4
+                beq     continueLoop
+
+                if.l d4 <lt> d2 then
+                    move.l  d4,d2
+                endi
+
+                if.l d4 <gt> d3 then
+                    move.l  d4,d3
+                endi
+
+continueLoop
+            endf
+
+            cmp.w   d2,d3
+            beq     targetIsHorizontal
+
+
+* target vertical
+
+            subq    #1,d2
+            addq    #1,d3
+            
+            lea     posShots,a3
+            
+            move.l  d2,-(SP)
+            jsr     getTileValue
+            move.l  (SP)+,d1
+            and.b   #$08,d1             ; get hit flag from tile value
+            bne     checkLowerTile
+            move.l  d2,(a3)+            ; add coord to possible shots
+checkLowerTile        
+            move.l  d3,-(SP)
+            jsr     getTileValue
+            move.l  (SP)+,d1
+            and.b   #$08,d1             ; get hit flag from tile value
+            bne     randomPosShot
+            move.l  d3,(a3)+            ; add coord to possible shots
+            bra     randomPosShot
+
+
+targetIsHorizontal
+            swap    d2
+            swap    d3
+            subq    #1,d2
+            addq    #1,d3
+            swap    d2
+            swap    d3
+            
+            lea     posShots,a3
+            
+            move.l  d2,-(SP)
+            jsr     getTileValue
+            move.l  (SP)+,d1
+            and.b   #$08,d1             ; get hit flag from tile value
+            bne     checkRightTile
+            move.l  d2,(a3)+            ; add coord to possible shots
+checkRightTile        
+            move.l  d3,-(SP)
+            jsr     getTileValue
+            move.l  (SP)+,d1
+            and.b   #$08,d1             ; get hit flag from tile value
+            bne     randomPosShot
+            move.l  d3,(a3)+            ; add coord to possible shots
+            bra     randomPosShot
+
+
+
+
 onePrevHit   
             lea     hitArray,a1
+            lea     posShots,a3
             move.l  (a1),d1             ; load x y of previous shot
             swap    d1
             addq.w  #1,d1               ; increase x value (tile above)
@@ -423,11 +534,11 @@ onePrevHit
             move.l  (SP)+,d2
             and.b   #$08,d2             ; get hit flag from tile value
             bne     tileLeft
-            lea     posShots,a3
             move.l  d1,(a3)+            ; add coord to possible shots
 tileLeft
+            move.l  (a1),d1
             swap    d1
-            subq.w  #2,d1
+            subq.w  #1,d1
             cmp.w   #0,d1
             
             blt     tileBelow
@@ -440,9 +551,7 @@ tileLeft
             move.l  d1,(a3)+            ; add coord to possible shots
 
 tileBelow
-            swap    d1
-            addq.w  #1,d1
-            swap    d1
+            move.l  (a1),d1
             addq.w  #1,d1               ; add to get right tile
             cmp.w   #9,d1
             bgt     tileAbove
@@ -463,20 +572,20 @@ tileAbove
             and.b   #$08,d2             ; get hit flag from tile value
             bne     randomPosShot
             move.l  d1,(a3)+            ; add coord to possible shots
-
-
-
+            bra     randomPosShot
 
 
 
 noPreviousHits
-            * get random shot
-
-
-multipleHits
-
-*   if 0 then random shot
-*   load plyr grid
+            move.l  #10,d2
+            move.l  #0,d3
+            jsr     getRandom
+            move.l  d1,d4
+            jsr     getRandom
+            swap    d1
+            move.w  d4,d1
+            move.l  d1,-4(a0)           ; move xy value into local variable
+            bra     takeShot
 
 
 randomPosShot
@@ -488,17 +597,71 @@ randomPosShot
             move.l  #0,d3
             jsr     getRandom
             lea     posShots,a1
-            move.l  (a1,d1),d1          ; move xy value into d1
+            mulu    #4,d1
+            adda    d1,a1
+            move.l  (a1),-4(a0)      ; move xy value into local variable
+            
+            move.l  #4,-(SP)            ; hit array length
+            pea     posShots            ; hit array address
+            jsr     clearArray
+            adda    #$8,a7
+
             bra     takeShot
 
 
 
 takeShot
             move.l  #1,-(SP)
-            move.l  d1,-(SP)
+            move.l  -4(a0),-(SP)
             jsr     shootTile
             move.l  (SP)+,d1            ; get return value 
             adda    #$4,a7              ; increment stack pointer
+
+            cmp.w   #$FFFE,d1           ; if return value is -2 then shot was on invalid tile
+            beq     endOfCmpTurn        ; TODO when comp selects invalid tile
+            cmp.w   #$FFFF,d1           ; if return value is -1 then shot was a miss
+            beq     endOfCmpTurn
+
+            lea     plyrShips,a2        ; else return value is a ship id
+            mulu    #4,d1
+            adda.l  d1,a2
+            move.l  a2,-(SP)            ; push ship address onto stack
+            move.l  -4(a0),-(SP)        ; push x y 
+            jsr     shipIsHit
+            move.l  (SP)+,d2            ; ship lives
+            adda    #$4,a7
+
+            move.l  -4(a0),-(SP)
+            pea     hitArray
+            jsr     addToArray
+            adda    #$8,a7
+
+            tst.l   d2
+            beq     shipIsDestroyed
+            bra     endOfCmpTurn
+
+shipIsDestroyed
+
+            move.l  #5,-(SP)            ; hit array length
+            pea     hitArray            ; hit array address
+            jsr     clearArray
+            adda    #$8,a7
+    * remove coords from hit array
+
+    * check if array is empty
+
+    * if check remaining coords against eachother
+
+    * put odd coords into second array
+
+    * continue
+
+
+endOfCmpTurn
+            unlk    a0
+            rts
+
+
 
 
 *   get length of possible shot array
@@ -539,29 +702,60 @@ takeShot
 *----------------------------------------------------------------------------------
 
 * parameters: array address, array total length (long)
-* return used array length (long)
+* return used memory slots (long)
+
 
 arrayLength
-            link    a0,#-4
+            link    a0,#-8
             move.l  8(a0),a1        ; array address parameter
-            move.l  12(a0),d1       ; array size parameter
-            move.l  #0,-4(a0)       ; counter local variable
-nextIndex            
-            move.l  (a1)+,d2        ; move array value into d1
+            move.l  #0,-4(a0)       ; index counter local variable
+nextIndex   
+            subq.l  #1,12(a0)       ; decrement array size counter
+            bmi     endOfArray
+            move.l  (a1)+,d2      ; move array value into d1
             cmp.l   #$FFFFFFFF,d2   ; check if d2 is empty
-            beq     endOfArray
-            addq.l  #1,-4(a0)       ; increment counter
-            cmp.l   -4(a0),d1       ; compare with array length
-            beq     endOfArray      ; if equal to size then reached end of array
+            beq     nextIndex       ; if equal to size then reached end of array
+            addq.l  #1,-4(a0)       ; increment memory counter
             bra     nextIndex
 endOfArray
-            move.l  -4(a0),8(a0)
+            move.l  -4(a0),8(a0)    ; return the memory counter value
             unlk    a0
             rts
 
 
 *----------------------------------------------------------------------------------
 
+
+addToArray
+            link    a0,#0
+            move.l  8(a0),a1        ; array address parameter
+nextArrayIndex
+            cmp.l   #$FFFFFFFF,(a1)
+            beq     addDataToArray
+            add     #4,a1
+            bra     nextArrayIndex
+addDataToArray
+            move.l  12(a0),(a1)
+            unlk    a0
+            rts
+
+
+*----------------------------------------------------------------------------------
+
+clearArray
+            link    a0,#-8
+            move.l  8(a0),a1        ; array address parameter
+            clr     d2
+
+            for.l   d1 = #1 TO 12(a0) DO                
+                move.l  #$FFFFFFFF,(a1)+
+            endf
+
+            unlk    a0
+            rts
+
+
+*----------------------------------------------------------------------------------
     
     INCLUDE     Random.X68
     INCLUDE     Grid.X68
@@ -588,7 +782,7 @@ cmpShips    dc.l    $00020002,$00020103,$00020203,$00020304,$00020405
 selected    dc.l    $00000004
 
 
-hitArray    dc.l    $00040003,$FFFFFFFF,$FFFFFFFF,$FFFFFFFF,$FFFFFFFF
+hitArray    dc.l    $FFFFFFFF,$FFFFFFFF,$FFFFFFFF,$FFFFFFFF,$FFFFFFFF
 posShots    ds.l    4
 
 

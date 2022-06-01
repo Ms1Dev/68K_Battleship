@@ -378,7 +378,7 @@ shotMissed
             move.l  #$0000FFFF,8(a0)    ; return missed shot code
             move.b  #$6F,(a1)           ; set tile colour
 
-            bra shootTileEnd
+            bra     shootTileEnd
 
 shootTileEnd
             unlk    a0
@@ -391,12 +391,14 @@ shootTileEnd
 
 getTileValue
             link    a0,#-4
+            move.l  d2,-4(a0)
             lea     plyrGrid,a2
-            move.w  10(a0),d2            ; move coordinate parimeter into d2
+            move.w  10(a0),d2           ; move coordinate parimeter into d2
             mulu    #10,d2              ; multiply y by 10 for row
-            add.w   8(a0),d2           ; add x for column
+            add.w   8(a0),d2            ; add x for column
             move.l  #0,8(a0)            ; clear return value
             move.b  (a2,d2),11(a0)      ; push byte onto stack
+            move.l  -4(a0),d2
             unlk    a0
             rts
 
