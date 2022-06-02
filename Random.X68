@@ -1,13 +1,9 @@
 *
 *   Module for generating random numbers
 * 
-*   Uses the Linear congruential generator algorithm
+*   Uses 16 bit Linear-feedback shift register 
 *
-*   Rn+1 = (A x Rn + C) mod M
-*
-*   A (multiplier) = 2256
-*   C (increment)  = 2
-*   M (modulus)    = 65535
+*   Taps are at bits 1, 11, 13, 14 and 16
 *
 *   Seed value is taken from hundredths of seconds since midnight
 *
@@ -17,43 +13,62 @@
 *       D2: Range of values
 *       D3: Lower limit of values
 *
-*   D2 + D3 should not be greater than 65535
+*   D2 + D3 should not be greater than 65535 ($FFFF)
 
 
-* TODO: For some reason if range is a multiple of 3 then results become very predictable
 
-
-setSeed 
-        move.w  #8,d0           ; get hundredths of seconds since midnight
+setSeed    
+        move.w  #8,d0           ; get seconds since midnight
         trap    #15             ;
         move.w  d1,seed         ; store low word as seed
         rts
 
             
 getRandom
-        clr.l   d1              ; 
-        move.w  seed,d1         ;
-        mulu    multiplier,d1   ; 
-        add.l   increment,d1    ;
-        divu    modulus,d1      ;
-        swap    d1              ; 
-        move.w  d1,seed         ; store result as next value
-        and.l   #$0000FFFF,d1   ; clear high word
-        divu.w  d2,d1           ; divide by range parameter
-        swap    d1              ; swap to get remainder
-        add.w   d3,d1           ; add lower limit parameter
-        and.l   #$0000FFFF,d1   ; clear high word
+        movem.l d2-d4,registerData      ; back up register data
+        
+        clr.l   d1              
+        move.w  seed,d1                 
+        clr.l   d4             
+
+        for d5 = #0 to #15 do
+            
+                move.l  d1,d3               ; d3 will be lsb
+                and.l   #1,d3               ; get lsb                      
+                lsl.l   #1,d4               ; shift output to make room for new bit
+                or      d3,d4               ; add bit to output      
+                lsr.l   #1,d1               ; shift start state
+                move.l  d1,d2               ; use d2 to shift and xor with d3
+                eor     d2,d3               ; xor d2 with lsb (tap position 1)
+                lsr.l   #8,d2               ; shift d2 a further 10 bits
+                lsr.l   #2,d2               ; (can only shift 8 at a time)
+                eor     d2,d3               ; xor d2 with lsb (tap position 11)
+                lsr.l   #2,d2               ; shift d2 2 bits
+                eor     d2,d3               ; xor d2 with lsb (tap position 13)
+                lsr.l   #1,d2               ; shift d2 1 bit       
+                eor     d2,d3               ; xor d2 with lsb (tap position 14)
+                lsr.l   #2,d2               ; shift d2 2 bits
+                eor     d2,d3               ; xor d2 with lsb (tap position 16)
+                and.l   #1,d3               ; get lsb  
+                ror.w   #1,d3               ; rotate to put it at start of word
+                or.l    d3,d1               ; add it to the start state
+        
+        endf
+        
+        move.w  d1,seed                 ; store d1 as seed 
+        move.w  d4,d1                   ; move the output into d1 
+        
+        movem.l registerData,d2-d4      ; restore data registers
+
+        and.l   #$0000FFFF,d1           ; clear high word
+        divu.w  d2,d1                   ; divide by range parameter
+        swap    d1                      ; swap to get remainder
+        add.w   d3,d1                   ; add lower limit parameter
+        and.l   #$0000FFFF,d1           ; clear high word
         rts
        
 
-seed        ds.w    1
-multiplier  dc.w    2256
-increment   dc.w    2
-modulus     dc.w    $FFFF
 
+seed            ds.l    1
+registerData    ds.l    3
 
-
-*~Font name~Courier New~
-*~Font size~10~
-*~Tab type~1~
-*~Tab size~4~
