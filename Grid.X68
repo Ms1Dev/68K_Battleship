@@ -8,12 +8,13 @@
 * add ships to grid *
 shipsOnGrd
             link    a0,#-4
-            move.l  16(a0),d3           ; computer player flag
+            move.l  16(a0),d3           ; add margin flag
             move.l  #0,-4(a0)           ; counter variable
             move.l  12(a0),a4
 nxtShip     move.l  (a4),d1             ; put ship data into d1
-            and.l   #$10000000,d1       ; bit mask to get show bit
-            tst.l   d1                  ; test to see whether to show ship or not   
+            move.l  d1,d6
+            and.l   #$C0000000,d6       ; bit mask to get show bit
+            tst.l   d6                  ; test to see whether to show ship or not   
             beq     incShip             ; if not then skip
             move.l  20(a0),d1
             cmp.l   -4(a0),d1           ; compare counter to selected 
@@ -35,12 +36,14 @@ incShip     addq.l  #4,a4               ; increment array
             
             mulu    #4,d1
             adda.l  d1,a4               ; selected ship data
-            move.l  20(a0),-(SP)         ; push ship id onto stack
+            move.l  20(a0),-(SP)        ; push ship id onto stack
             move.l  8(a0),-(SP)         ; push grid parameter
             move.l  (a4),-(SP)          ; push ship data onto stack
             jsr     addToGrid
             adda    #$C,a7
             tst.b   d5                  ; collision detected flag
+            beq     noCollision
+            cmp.l   #$C0000000,d6
             beq     noCollision
 * if collision colour ship red and add to grid *
             and.l   #$FFF0FFFF,(a4)     ; clear colour attribute
@@ -69,8 +72,6 @@ addToGrid
             move.l  d1,-8(a0)           ; store y value locally
             move.l  8(a0),d1    
             and.l   #$0000000F,d1       ; length bitmask
-            * subq.l  #1,d1
-            * addq.l  #1,d1
             move.l  d1,-12(a0)          ; length value
             move.l  8(a0),d1        
             and.l   #$00001000,d1       ; vertical/horizontal bitmask
@@ -127,10 +128,10 @@ noMargin
 
 *-----------------------------------------------------------------------------------
 
-* clears the player grid
+* clears grid
 clearGrd    
             link    a0,#0
-            move.l  8(a0),a2            ; load the player grid
+            move.l  8(a0),a2            ; load the grid
             move.l  #0,d1               ; load counter into d1
 clrGrdLoop  
             movea.l a2,a3

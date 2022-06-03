@@ -10,22 +10,23 @@
 *   setSeed must be called once before using getRandom function   
 *
 *   getRandom takes 2 parameters 
-*       D2: Range of values
-*       D3: Lower limit of values
+*       D2.W: Range of values
+*       D3.W: Lower limit of values
 *
 *   D2 + D3 should not be greater than 65535 ($FFFF)
-
+*
+*---------------------------------------------------------------------------
 
 
 setSeed    
-        move.w  #8,d0           ; get seconds since midnight
+        move.w  #8,d0           ; get hundredths of seconds since midnight
         trap    #15             ;
         move.w  d1,seed         ; store low word as seed
         rts
 
             
 getRandom
-        movem.l d2-d4,registerData      ; back up register data
+        movem.l d2-d4,registerData          ; back up register data
         
         clr.l   d1              
         move.w  seed,d1                 
@@ -67,7 +68,6 @@ getRandom
         and.l   #$0000FFFF,d1           ; clear high word
         rts
        
-
 
 seed            ds.l    1
 registerData    ds.l    3

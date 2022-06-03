@@ -32,7 +32,12 @@ cmpSetup
             bra     gameContd
             
 playMode    
+            tst.b   playerTurn
+            beq     cmpTurn
             jsr     playRound
+            bra     gameContd
+cmpTurn     
+            jsr     computerTurn
             bra     gameContd
 
 
@@ -50,7 +55,7 @@ setup
             add.l   #$00050000,(a3)     ; set colour 
             
             move.l  (a3),d2             ; move ship data into d2
-            or.l    #$10000000,d2       ; set the show bit 
+            or.l    #$80000000,d2       ; set the show bit 
             move.l  d2,(a3)
             and.l   #$0000000F,d2       ; get length attribute
             subq.l  #1,d2       
@@ -176,7 +181,7 @@ loadNextShip
             move.l  selected,d1
             mulu    #4,d1
             adda.l  d1,a3               ; increment array to get selected ship data
-            or.l    #$10000000,(a3)
+            or.l    #$C0000000,(a3)
             
     * get random x y pos
             move.l  (a3),d4             ; move ship data into d2
@@ -234,6 +239,14 @@ placeShipAgain
             
             bpl     loadNextShip
             
+            move.l  #0,-(SP)            
+            move.l  #0,-(SP)            
+            pea     cmpShips   
+            pea     cmpGrid     
+            jsr     clearGrd
+            jsr     shipsOnGrd
+            adda    #$10,a7
+
             rts
 
 
@@ -279,13 +292,11 @@ playRound
 missedShot
 
             * next player
+            not.b  playerTurn
 invalidTile
 
             * repeat for same player
 continueRound
-
-            jsr     computerTurn
-
             rts
 
 
@@ -435,10 +446,10 @@ noCursorTarget
 
 * computer turn
 
-*   get hit array length
 
 computerTurn
-            link    a0,#-4
+            link    a0,#-8
+repeatTurn
             move.l  #11,-(SP)           ; hit array length
             pea     hitArray            ; hit array address
             jsr     arrayLength         ; get number indexes used in array
@@ -468,9 +479,7 @@ hitArrayEmpty
             bra     onePrevHit
 
 
-multipleHits
-
-        
+multipleHits   
             move.l  #$000F000F,d2       ; min coord
             clr.l   d4
 
@@ -623,6 +632,118 @@ noPreviousHits
             jsr     getRandom
             swap    d1
             move.w  d4,d1
+
+* tile already hit
+            move.l  d1,-(SP)
+            jsr     getTileValue
+            move.l  (SP)+,d2
+            and     #$F,d2
+            cmp.b   #8,d2
+            bge     noPreviousHits
+
+* get length of smallest remaining ship
+            lea     remShips,a2
+            move.l  a2,-8(a0)
+            add.l   #4,-8(a0)
+            clr     d2
+            move.b  #$7F,d2
+            for.l a2 = a2 to -8(a0) do
+                if.b (a2) <ne> #$FF then
+                    if.b (a2) <lt> d2 then
+                        move.b  (a2),d2
+                    endi
+                endi
+            endf
+
+* check vertical space
+            move.l  d1,d3               ; move coords into d3
+            clr     d4                  ; count spaces in d4
+            clr     d5
+
+            * check below
+            while.b d5 <lt> #$8 do
+                addq    #1,d4           ; increment counter
+                cmp.b   d2,d4           ; compare counter with ship length
+                bge     enoughRoomForShip
+                addq.l  #1,d3           ; increment y value
+                if.w d3 <lt> #10 then
+                    move.l  d3,-(SP)
+                    jsr     getTileValue
+                    move.l  (SP)+,d5
+                    and     #$F,d5
+                else
+                    move.b  #$7F,d5
+                endi
+            endw
+    
+            * check above
+            subq    #1,d4               ; decrement counter as centre tile is already counted
+            move.l  d1,d3               ; put centre coord back in d3
+            clr     d5
+
+            while.b d5 <lt> #$8 do
+                addq    #1,d4           ; increment counter
+                cmp.b   d2,d4               ; compare counter with ship length
+                bge     enoughRoomForShip
+                subq.l  #1,d3
+                if.w d3 <gt> #0 then
+                    move.l  d3,-(SP)
+                    jsr     getTileValue
+                    move.l  (SP)+,d5
+                    and     #$F,d5
+                else
+                    move.b  #$7F,d5
+                endi          
+            endw
+
+* check horizontal
+            * check right
+            move.l  d1,d3               ; move coords into d3
+            clr     d4                  ; count spaces in d4
+            clr     d5
+
+            while.b d5 <lt> #$8 do
+                addq    #1,d4           ; increment counter
+                cmp.b   d2,d4           ; compare counter with ship length
+                bge     enoughRoomForShip
+                swap    d3
+                addq.l  #1,d3           ; increment x value
+                if.w d3 <lt> #10 then
+                    swap    d3
+                    move.l  d3,-(SP)
+                    jsr     getTileValue
+                    move.l  (SP)+,d5
+                    and     #$F,d5
+                else
+                    move.b  #$7F,d5
+                endi
+            endw
+
+            * check below
+            subq    #1,d4               ; decrement counter as centre tile is already counted
+            move.l  d1,d3               ; put centre coord back in d3
+            clr     d5
+
+            while.b d5 <lt> #$8 do
+                addq    #1,d4           ; increment counter                
+                cmp.b   d2,d4               ; compare counter with ship length
+                bge     enoughRoomForShip
+                swap    d3
+                subq.l  #1,d3           ; decrement x value
+                if.w d3 <gt> #0 then
+                    swap    d3
+                    move.l  d3,-(SP)
+                    jsr     getTileValue
+                    move.l  (SP)+,d5
+                    and     #$F,d5
+                else
+                    move.b  #$7F,d5
+                endi
+            endw
+
+            bra     noPreviousHits
+
+enoughRoomForShip
             move.l  d1,-4(a0)           ; move xy value into local variable
             bra     takeShot
 
@@ -679,7 +800,7 @@ takeShot
             adda    #$4,a7              ; increment stack pointer
 
             cmp.w   #$FFFE,d1           ; if return value is -2 then shot was on invalid tile
-            beq     endOfCmpTurn        ; TODO when comp selects invalid tile
+            beq     repeatTurn          ; if tile is invalid then repeat turn
             cmp.w   #$FFFF,d1           ; if return value is -1 then shot was a miss
             beq     endOfCmpTurn
 
@@ -717,13 +838,20 @@ shipIsDestroyed
             and.l   #$0000000F,d5       ; d5 has length
             and.l   #$00001000,d3       ; vertical flag
 
+
+            move.b  d5,-(SP)
+            move.l  #5,-(SP)
+            pea     remShips
+            jsr     remByteFromArray
+            adda    #10,a7
+
             if.l d3 <eq> #0 then
 
                 for.l d5 = d5 downto #1 do
                     move.l  d4,-(SP)
                     move.l  #$11,-(SP)
                     pea     hitArray
-                    jsr     removeCoord
+                    jsr     remArrayData
                     add.l   #$00000001,d4
                 endf
 
@@ -733,7 +861,7 @@ shipIsDestroyed
                     move.l  d4,-(SP)
                     move.l  #$11,-(SP)
                     pea     hitArray
-                    jsr     removeCoord
+                    jsr     remArrayData
                     add.l   #$00010000,d4
                 endf
             endi    
@@ -748,6 +876,7 @@ shipIsDestroyed
 
 
 endOfCmpTurn
+            not.b   playerTurn
             unlk    a0
             rts
 
@@ -779,9 +908,9 @@ endOfArray
 
 *----------------------------------------------------------------------------------
 
-* adds a coordinate to the next available location in array
+* inserts a long in the next available location in array
 
-* params: array address, coordinate ($000X000Y)
+* params: array address, data (long)
 
 
 addToArray
@@ -794,6 +923,27 @@ nextArrayIndex
             bra     nextArrayIndex
 addDataToArray
             move.l  12(a0),(a1)
+            unlk    a0
+            rts
+
+
+*----------------------------------------------------------------------------------
+
+* inserts a long in the next available location in array
+
+* params: array address, data (long)
+
+
+addByteToArray
+            link    a0,#0
+            move.l  8(a0),a1        ; array address parameter
+nextByteIndex
+            cmp.b   #$FF,(a1)
+            beq     addByteData
+            add     #1,a1
+            bra     nextByteIndex
+addByteData
+            move.b  12(a0),(a1)
             unlk    a0
             rts
 
@@ -818,15 +968,15 @@ clearArray
 
 *----------------------------------------------------------------------------------
 
-* params: array address, array length, coord to remove
+* params: array address, array length, data to remove (longs)
 
-removeCoord
+remArrayData
             link    a0,#0
             move.l  8(a0),a1        ; array address parameter
             move.l  16(a0),d2
 
             for.l   d1 = #1 to 12(a0) do
-                if.l d2 <eq> (a1) then      * if value in array equals coord then remove and break from loop      
+                if.l d2 <eq> (a1) then      * if value in array equals coord then remove and break from loop     
                     move.l  #$FFFFFFFF,(a1)
                     bra     breakLoop           
                 endi
@@ -836,6 +986,25 @@ breakLoop
             unlk    a0
             rts
 
+*----------------------------------------------------------------------------------
+
+* params: array address, array length, data to remove (byte)
+
+remByteFromArray
+            link    a0,#0
+            move.l  8(a0),a1        ; array address parameter
+            move.b  16(a0),d2
+
+            for.l   d1 = #1 to 12(a0) do
+                if.b d2 <eq> (a1) then      * if value in array equals coord then remove and break from loop     
+                    move.b  #$FF,(a1)
+                    bra     breakByteLoop           
+                endi
+                adda    #$1,a1                  * increment array
+            endf
+breakByteLoop
+            unlk    a0
+            rts
 *----------------------------------------------------------------------------------
 
 * removes first item from array and returns it
@@ -889,7 +1058,7 @@ gameMode    dc.b    0           ; 0: setup, 1: play mode
 
 
 * Ship data
-*   S|0|0|0|0|0|0|H|H|H|H|H|C|C|C|C|0|0|0|V|X|X|X|X|Y|Y|Y|Y|L|L|L|L
+*   0|0|0|0|0|0|0|H|H|H|H|H|C|C|C|C|0|0|0|V|X|X|X|X|Y|Y|Y|Y|L|L|L|L
 *
 *   S: Show ship flag
 *   0: Unused
@@ -901,13 +1070,19 @@ gameMode    dc.b    0           ; 0: setup, 1: play mode
 *   L: Ship length/lives
 
 plyrShips   dc.l    $00020002,$00020003,$00020003,$00020004,$00020005
-cmpShips    dc.l    $00020002,$00020103,$00020203,$00020304,$00020405
+cmpShips    dc.l    $00000002,$00000103,$00000203,$00000304,$00000405
 selected    dc.l    $00000004
+
+remShips    dc.b    $2,$3,$3,$4,$5
+cmpSunk     ds.b    5
+plyrSunk    ds.b    5
 
 
 hitArray    ds.l    11
 holdArray   ds.l    11
 posShots    ds.l    4
+
+playerTurn  dc.b    0
 
 
 beginMsg    dc.b    'Press "y" to begin or "n" to move ships',0
