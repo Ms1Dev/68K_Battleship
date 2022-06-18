@@ -13,7 +13,9 @@ gameLoop    cmp.b   #0,gameMode
             cmp.b   #2,gameMode
             beq     cmpSetup
             cmp.b   #3,gameMode
-            beq     playMode    
+            beq     playMode 
+            cmp.b   #4,gameMode
+            beq     gameOver  
 gameContd   
             jsr     gridRfrsh
             bra     gameLoop
@@ -40,6 +42,19 @@ cmpTurn
             jsr     computerTurn
             bra     gameContd
 
+gameOver
+            cmp.b   #1,winner
+            beq     .playerWon
+            lea     cmpWinMsg,a1
+            bra     .showMessage
+.playerWon
+            lea     plyrWinMsg,a1 
+.showMessage      
+            move.w  #300,d1                
+            move.w  #250,d2             
+            move.l  #95,d0 
+            trap    #15                 ;print  message on screen
+            bra     gameContd
 
 *-----------------------------------------------------------------------------
 
@@ -457,7 +472,7 @@ repeatTurn
             adda    #$4,a7              ; increment stack pointer
 
             cmp.l   #1,d1               ; test array length against 1
-            bmi     hitArrayEmpty      ; if negative then there are no hits in array
+            bmi     hitArrayEmpty       ; if negative then there are no hits in array
             beq     onePrevHit          ; if equal then one hit in array
             bra     multipleHits
 
@@ -844,7 +859,14 @@ shipIsDestroyed
             pea     remShips
             jsr     remByteFromArray
             adda    #10,a7
-
+            move.l  #5,-(SP)
+            pea     remShips
+            jsr     byteArrayLength
+            move.l  (SP)+,d1
+            adda    #4,a7
+            tst.l   d1
+            beq     cmpWin
+            
             if.l d3 <eq> #0 then
 
                 for.l d5 = d5 downto #1 do
@@ -880,6 +902,11 @@ endOfCmpTurn
             unlk    a0
             rts
 
+cmpWin
+            move.b  #2,winner
+            move.b  #4,gameMode
+            bra     endOfCmpTurn
+
 *----------------------------------------------------------------------------------
 
 * returns count of used locations in array not the total length
@@ -892,18 +919,44 @@ arrayLength
             link    a0,#-8
             move.l  8(a0),a1        ; array address parameter
             move.l  #0,-4(a0)       ; index counter local variable
-nextIndex   
+.nextIndex   
             subq.l  #1,12(a0)       ; decrement array size counter
-            bmi     endOfArray
-            move.l  (a1)+,d2      ; move array value into d1
+            bmi     .endOfArray
+            move.l  (a1)+,d2        ; move array value into d1
             cmp.l   #$FFFFFFFF,d2   ; check if d2 is empty
-            beq     nextIndex       ; if equal to size then reached end of array
+            beq     .nextIndex       ; if equal to size then reached end of array
             addq.l  #1,-4(a0)       ; increment memory counter
-            bra     nextIndex
-endOfArray
+            bra     .nextIndex
+.endOfArray
             move.l  -4(a0),8(a0)    ; return the memory counter value
             unlk    a0
             rts
+
+*----------------------------------------------------------------------------------
+
+* returns count of used locations in array not the total length
+
+* parameters: array address, array total length (long)
+* return used memory slots (long)
+
+
+byteArrayLength
+            link    a0,#-8
+            move.l  8(a0),a1        ; array address parameter
+            move.l  #0,-4(a0)       ; index counter local variable
+.nextIndex   
+            subq.l  #1,12(a0)       ; decrement array size counter
+            bmi     .endOfArray
+            move.b  (a1)+,d2        ; move array value into d1
+            cmp.b   #$FF,d2         ; check if d2 is empty
+            beq     .nextIndex      ; if equal to size then reached end of array
+            addq.l  #1,-4(a0)       ; increment memory counter
+            bra     .nextIndex
+.endOfArray
+            move.l  -4(a0),8(a0)    ; return the memory counter value
+            unlk    a0
+            rts
+
 
 
 *----------------------------------------------------------------------------------
@@ -916,12 +969,12 @@ endOfArray
 addToArray
             link    a0,#0
             move.l  8(a0),a1        ; array address parameter
-nextArrayIndex
+.nextIndex
             cmp.l   #$FFFFFFFF,(a1)
-            beq     addDataToArray
+            beq     .addData
             add     #4,a1
-            bra     nextArrayIndex
-addDataToArray
+            bra     .nextIndex
+.addData
             move.l  12(a0),(a1)
             unlk    a0
             rts
@@ -937,12 +990,12 @@ addDataToArray
 addByteToArray
             link    a0,#0
             move.l  8(a0),a1        ; array address parameter
-nextByteIndex
+.nextIndex
             cmp.b   #$FF,(a1)
-            beq     addByteData
+            beq     .addData
             add     #1,a1
-            bra     nextByteIndex
-addByteData
+            bra     .nextIndex
+.addData
             move.b  12(a0),(a1)
             unlk    a0
             rts
@@ -974,15 +1027,18 @@ remArrayData
             link    a0,#0
             move.l  8(a0),a1        ; array address parameter
             move.l  16(a0),d2
-
-            for.l   d1 = #1 to 12(a0) do
-                if.l d2 <eq> (a1) then      * if value in array equals coord then remove and break from loop     
-                    move.l  #$FFFFFFFF,(a1)
-                    bra     breakLoop           
-                endi
-                adda    #$4,a1                  * increment array
-            endf
-breakLoop
+            clr     d1              ; counter
+.loop
+            cmp.l   (a1),d2
+            beq     .removeData
+            addq.l  #1,d1
+            adda    #$4,a1                  * increment array
+            cmp.l   12(a0),d1
+            bge     .end
+            bra     .loop
+.removeData
+            move.l  #$FFFFFFFF,(a1)
+.end
             unlk    a0
             rts
 
@@ -995,14 +1051,18 @@ remByteFromArray
             move.l  8(a0),a1        ; array address parameter
             move.b  16(a0),d2
 
-            for.l   d1 = #1 to 12(a0) do
-                if.b d2 <eq> (a1) then      * if value in array equals coord then remove and break from loop     
-                    move.b  #$FF,(a1)
-                    bra     breakByteLoop           
-                endi
-                adda    #$1,a1                  * increment array
-            endf
-breakByteLoop
+            clr     d1              ; counter
+.loop
+            cmp.b   (a1),d2
+            beq     .removeData
+            addq.l  #1,d1
+            adda    #1,a1           ; increment array
+            cmp.l   12(a0),d1
+            bge     .end
+            bra     .loop
+.removeData
+            move.b  #$FF,(a1)
+.end
             unlk    a0
             rts
 *----------------------------------------------------------------------------------
@@ -1019,11 +1079,11 @@ popArray
                 if.l (a1) <ne> #$FFFFFFFF then      ; first non empty slot     
                     move.l  (a1),8(a0)              ; move to return value
                     move.l  #$FFFFFFFF,(a1)         ; remove from array
-                    bra     breakFromLoop           
+                    bra     break           
                 endi
                 adda    #$4,a1                  * increment array
             endf
-breakFromLoop
+            break:
             unlk    a0
             rts
 
@@ -1084,9 +1144,12 @@ posShots    ds.l    4
 
 playerTurn  dc.b    0
 
+winner      dc.b    0
 
 beginMsg    dc.b    'Press "y" to begin or "n" to move ships',0
 startMsg    dc.b    'Start',0
+plyrWinMsg  dc.b    'Player Won!',0
+cmpWinMsg   dc.b    'Computer Won!',0
     
     END    START        ; last line of source
 
