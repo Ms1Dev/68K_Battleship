@@ -6,6 +6,7 @@
 
 * Game loop
 
+
 gameLoop    cmp.b   #0,gameMode       
             beq     setupMode
             cmp.b   #1,gameMode       
@@ -54,7 +55,68 @@ gameOver
             move.w  #250,d2             
             move.l  #95,d0 
             trap    #15                 ;print  message on screen
+
+            move.l  #0,-(SP)            ; make room on stack for return value
+            jsr     userInput
+            move.l  (SP)+,d1
+
+            cmp.b   #'y',d1
+            jsr     initialiseGame
+            
             bra     gameContd
+            
+
+*-----------------------------------------------------------------------------
+
+initialiseGame
+            link    a0,#-4
+            lea     plyrShips,a1
+            lea     cmpShips,a2
+            lea     pRemaining,a3
+            lea     cRemaining,a4
+            move.b  #2,-1(a0)           ; flag for repeating 3
+            move.l  #2,d1
+.nextIndex        
+            move.l  d1,(a1)+
+            move.l  d1,(a2)+
+            move.b  d1,(a3)+
+            move.b  d1,(a4)+
+            addq.l  #1,d1
+            cmp.l   #6,d1
+            beq     shipArraySet
+            * there are 2 ships with the value 3 so one loop needs to repeat the same value
+            * local variable -1(a0) starts at #1 and is decremented after each loop
+            * if it equals 0 then the value in d1 is decremented cancelled the increment for this loop
+            subq.b  #1,-1(a0)            
+            bne     .nextIndex
+            subq.l  #1,d1       
+            bne     .nextIndex
+shipArraySet
+            move.l  #4,selected     ; set selected ship to default 
+            jsr     gridReset       ; clear both grids
+* clear computer possible shot array            
+            move.l  #4,-(SP)       
+            pea     posShots            
+            jsr     clearArray
+            adda    #$8,a7
+* clear computer hit array
+            move.l  #11,-(SP)       
+            pea     hitArray            
+            jsr     clearArray
+            adda    #$8,a7
+* clear computer hold array
+            move.l  #11,-(SP)      
+            pea     holdArray            
+            jsr     clearArray
+            adda    #$8,a7
+* set winner to 0
+            move.b  #0,winner
+* set game mode to setup
+            move.b  #0,gameMode
+* set cursor position to 0,0
+            move.w  #0,cursorPos
+            unlk    a0
+            rts
 
 *-----------------------------------------------------------------------------
 
@@ -197,7 +259,11 @@ loadNextShip
             mulu    #4,d1
             adda.l  d1,a3               ; increment array to get selected ship data
             or.l    #$C0000000,(a3)
-            
+
+            tst.b   showCmpShips
+            beq     .hideCmpShips
+            or.l    #$00040000,(a3)
+.hideCmpShips
     * get random x y pos
             move.l  (a3),d4             ; move ship data into d2
             and.l   #$0000000F,d4       ; get length attribute
@@ -255,7 +321,7 @@ placeShipAgain
             bpl     loadNextShip
             
             move.l  #0,-(SP)            
-            move.l  #0,-(SP)            
+            move.l  showMargins,-(SP)            
             pea     cmpShips   
             pea     cmpGrid     
             jsr     clearGrd
@@ -288,9 +354,9 @@ playRound
             adda    #$4,a7              ; increment stack pointer
 
             cmp.w   #$FFFE,d1           ; if return value is -2 then shot was on invalid tile
-            beq     invalidTile
+            beq     continueRound     
             cmp.w   #$FFFF,d1           ; if return value is -1 then shot was a miss
-            beq     missedShot
+            beq     nextPlayer
 
             lea     cmpShips,a2         ; else return value is a ship id
             mulu    #4,d1
@@ -302,17 +368,53 @@ playRound
             move.b  (1,a3),d2
             move.l  d2,-(SP)
             jsr     shipIsHit
-            adda    #$8,a7
 
-missedShot
+            move.l  (SP)+,d4            ; ship lives
+            adda    #$4,a7
 
-            * next player
+            tst.l   d4
+            beq     shipDestroyed
+            bra     nextPlayer
+
+shipDestroyed
+
+            move.l (a2),d3              ; ship data into d3-d5
+            move.l (a2),d4              
+            move.l (a2),d5              
+
+            and.l   #$00000F00,d4
+            lsr     #8,d4
+            swap    d4
+            and.l   #$000000F0,d5
+            lsr     #4,d5
+            add     d5,d4               ; d4 has x y
+            move.l  d3,d5
+            and.l   #$0000000F,d5       ; d5 has length
+            and.l   #$00001000,d3       ; vertical flag
+
+            move.b  d5,-(SP)
+            move.l  #5,-(SP)
+            pea     cRemaining
+            jsr     remByteFromArray
+            adda    #10,a7
+            move.l  #5,-(SP)
+            pea     cRemaining
+            jsr     byteArrayLength
+            move.l  (SP)+,d1
+            adda    #4,a7
+            tst.l   d1
+            beq     plyrWin
+
+nextPlayer
             not.b  playerTurn
-invalidTile
 
-            * repeat for same player
 continueRound
             rts
+
+plyrWin
+            move.b  #1,winner
+            move.b  #4,gameMode
+            bra     continueRound   
 
 
 *------------------------------------------------------------------------
@@ -657,7 +759,7 @@ noPreviousHits
             bge     noPreviousHits
 
 * get length of smallest remaining ship
-            lea     remShips,a2
+            lea     pRemaining,a2
             move.l  a2,-8(a0)
             add.l   #4,-8(a0)
             clr     d2
@@ -856,11 +958,11 @@ shipIsDestroyed
 
             move.b  d5,-(SP)
             move.l  #5,-(SP)
-            pea     remShips
+            pea     pRemaining
             jsr     remByteFromArray
             adda    #10,a7
             move.l  #5,-(SP)
-            pea     remShips
+            pea     pRemaining
             jsr     byteArrayLength
             move.l  (SP)+,d1
             adda    #4,a7
@@ -1129,14 +1231,12 @@ gameMode    dc.b    0           ; 0: setup, 1: play mode
 *   Y: Y pos
 *   L: Ship length/lives
 
-plyrShips   dc.l    $00020002,$00020003,$00020003,$00020004,$00020005
-cmpShips    dc.l    $00000002,$00000103,$00000203,$00000304,$00000405
-selected    dc.l    $00000004
+plyrShips   ds.l    5
+cmpShips    ds.l    5
+selected    ds.l    1
 
-remShips    dc.b    $2,$3,$3,$4,$5
-cmpSunk     ds.b    5
-plyrSunk    ds.b    5
-
+pRemaining  ds.b    5
+cRemaining  ds.b    5
 
 hitArray    ds.l    11
 holdArray   ds.l    11
@@ -1150,6 +1250,10 @@ beginMsg    dc.b    'Press "y" to begin or "n" to move ships',0
 startMsg    dc.b    'Start',0
 plyrWinMsg  dc.b    'Player Won!',0
 cmpWinMsg   dc.b    'Computer Won!',0
+
+showCmpShips    dc.b    0
+showMargins     dc.l    0
+shipSpacing     dc.w    3   ; Likelihood of computer ships touching
     
     END    START        ; last line of source
 

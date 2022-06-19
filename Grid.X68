@@ -45,7 +45,7 @@ incShip     addq.l  #4,a4               ; increment array
             beq     noCollision
             cmp.l   #$C0000000,d6
             beq     noCollision
-* if collision colour ship red and add to grid *
+* if collision then colour ship red and add to grid *
             and.l   #$FFF0FFFF,(a4)     ; clear colour attribute
             add.l   #$00040000,(a4)     ; set colour
             move.l  20(a0),-(SP)        ; push ship id onto stack
@@ -60,7 +60,7 @@ noCollision
 
 
 addToGrid   
-            link    a0,#-16         
+            link    a0,#-32         
             move.l  8(a0),d1
             and.l   #$00000F00,d1       ; x pos bitmask
             lsr.l   #$8,d1              ; shift bits right
@@ -108,7 +108,19 @@ incRow      adda    #10,a2              ; inc address by 10 (next row)
 cntnue      subq.l  #1,d1               ; decrement length variable
             bne     setTile
             tst     d3
-            beq     noMargin         
+            beq     noMargin
+
+            movem.l d2-d3,-24(a0)
+
+            move.w  shipSpacing,d2             
+            move.w  #0,d3
+            jsr     getRandom
+
+            movem.l -24(a0),d2-d3
+
+            cmp.w   #$1,d1              ; compare result with 32767
+            beq     noMargin             
+
             move.l  -12(a0),d1          ; push length value on stack
             move.w  d1,-(SP)
             clr     d1
@@ -321,7 +333,7 @@ addNextMargin
             beq     incrementRow 
             bra     addNextMargin
 addMarginCont
-            move.b  #$10,(a1)+
+            move.b  #$30,(a1)+
             subq.w  #1,d1
             beq     incrementRow 
             bra     addNextMargin  
@@ -406,6 +418,19 @@ getTileValue
  
 *----------------------------------------------------------------------------------------------
 
+gridReset 
+            link    a0,#0
+            pea     cmpGrid
+            jsr     clearGrd
+            adda    #4,a7
+            pea     plyrGrid
+            jsr     clearGrd
+            adda    #4,a7
+            unlk    a0
+            rts
+ 
+*----------------------------------------------------------------------------------------------
+
 
 *   Tile data is stored as 1 byte of memory in 2d array
 *   
@@ -442,7 +467,6 @@ GRIDX       equ     100
 tileSize    dc.w    20
 tileNum     dc.b    10
 
-
 tileclr     dc.l    BLACK,GRAY,AQUA,YELLOW,RED,GREEN,PURPLE
 
 BLACK       equ     $00000000 
@@ -461,7 +485,6 @@ FUCHSIA     equ     $00FF00FF
 AQUA        equ     $00FFFF00 
 LTGRAY      equ     $00C0C0C0 
 WHITE       equ     $00FFFFFF 
-
 
 
 

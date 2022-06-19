@@ -26,9 +26,12 @@ setSeed
 
             
 getRandom
-        movem.l d2-d4,registerData          ; back up register data
-        
-        clr.l   d1              
+        link    a0,#0
+
+        movem.l d2-d5,registerData          ; back up register data
+        clr.l   d1 
+        tst.w   d2                          ; if range is set to 0 then return 
+        beq     rand_return                 ; return value will be 0
         move.w  seed,d1                 
         clr.l   d4             
 
@@ -59,16 +62,18 @@ getRandom
         move.w  d1,seed                 ; store d1 as seed 
         move.w  d4,d1                   ; move the output into d1 
         
-        movem.l registerData,d2-d4      ; restore data registers
+        movem.l registerData,d2-d5      ; restore data registers
 
         and.l   #$0000FFFF,d1           ; clear high word
         divu.w  d2,d1                   ; divide by range parameter
         swap    d1                      ; swap to get remainder
         add.w   d3,d1                   ; add lower limit parameter
         and.l   #$0000FFFF,d1           ; clear high word
+        rand_return:   
+        unlk    a0
         rts
        
 
 seed            ds.l    1
-registerData    ds.l    3
+registerData    ds.l    4
 

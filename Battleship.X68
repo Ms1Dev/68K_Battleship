@@ -1,4 +1,4 @@
-*-----------------------------------------------------------
+*------------------------------------------ -----------------
 * Title      :  Battleship
 * Written by :  Michael Swann
 * Date       :  24/05/2022
@@ -17,6 +17,7 @@ START:                              ; first instruction of program
         move.l		#0,d1
         trap		#15
         jsr         setSeed     ; set the random seed
+        jsr     initialiseGame
         jsr         gameLoop    
 
 
@@ -25,6 +26,7 @@ START:                              ; first instruction of program
     INCLUDE     Main.X68
     
 END    START        ; last line of source
+
 
 
 
