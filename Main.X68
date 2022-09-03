@@ -82,8 +82,8 @@ initialiseGame
             move.l  d1,(a2)+
             move.b  d1,(a3)
             move.b  d1,(a4)
-            or.b    #$30,(a3)+      ; byte should be Fn where n is the ship length
-            or.b    #$30,(a4)+      ; F is flag to show the ship has not been placed
+            or.b    #$30,(a3)+      ; byte should be 3n where n is the ship length
+            or.b    #$30,(a4)+      ; 3 is flag to show the ship has not been placed
             addq.l  #1,d1
             cmp.l   #6,d1
             beq     shipArraySet
@@ -264,10 +264,9 @@ beginGame
 
 
 computerSetup
-            
+            link    a0,#-8
     * load selected ship
 loadNextShip
-            link    a0,#-12
             lea     cmpShips,a3         ; select ship data from array
             move.l  selected,d1
             mulu    #4,d1
@@ -328,25 +327,15 @@ notHorizontal
             tst.b   d5                  ; collision flag
             bne     placeShipAgain
 
-            * movem.l d1-d3,-12(a0)        ; back up registers
-
+        
             move.l  selected,d1
             lea     cRemaining,a5
             adda.l  d1,a5
             and.b   #$0F,(a5)               ; clear the flag for placing ship
 
-            * move    #$5,d2              ; set range 
-            * move    #$5,d3              ; set lower limit
-            * jsr     getRandom           ; d1 has random number
-
-            * move    #23,d0
-            * trap    #15                 ; call delay with random value
-
-            * movem.l -12(a0),d1-d3
-
             subq.l  #1,selected
 placeShipAgain
-            unlk    a0
+            
             tst.l   selected
             
             bpl     loadNextShip
@@ -357,8 +346,8 @@ placeShipAgain
             pea     cmpGrid     
             jsr     clearGrd
             jsr     shipsOnGrd
-            adda    #$10,a7
-
+            adda    #16,a7
+            unlk    a0
             rts
 
 
@@ -1256,6 +1245,24 @@ copyArray
 
 
 *----------------------------------------------------------------------------------
+
+randDelay
+            link    a0,#0
+            movem.l d2-d3,-8(a0)        ; back up registers
+
+            move    #$5,d2              ; set range 
+            move    #$5,d3              ; set lower limit
+            jsr     getRandom           ; d1 has random number
+
+            move    #23,d0
+            trap    #15                 ; call delay with random value
+
+            movem.l -8(a0),d2-d3
+            
+            unlk    a0
+            rts
+
+*-----------------------------------------------------------------------
     
     INCLUDE     Random.X68
     INCLUDE     Grid.X68

@@ -36,7 +36,7 @@ drawBackground
 *---------------------------------------------------------------------------
 
 drawRemainingShips
-            link    a0,#-20
+            link    a0,#-24
             move.l  8(a0),a1        ; remaining ship array address
             move.l  12(a0),d1       ; x y coord of display
             move.w  d1,-6(a0)
@@ -75,7 +75,7 @@ drawRemainingShips
             bne     .drawShip
 
 .drawShip
-            move.l  -16(a0),d5          ; current ship
+            move.l  -16(a0),-24(a0)          ; current ship
             
             move.w  -6(a0),d1   
             move.w  -6(a0),d3           ; x
@@ -94,7 +94,7 @@ drawRemainingShips
             move.w  #87,d0
             trap    #15
 
-            subq.l  #1,d5
+            subq.l  #1,-24(a0) 
             beq     .nextShip
             bra     .nextTile
 
