@@ -159,11 +159,21 @@ clrGrdLoop
 
 * draws the grid *
 
-drwGrid     move.l  4(a7),d4            ; starting lower y value
-            clr     d5                  ; row counter
-drwRow      move.w  #GRIDX,d3           ; starting x value
+drwGrid     
+            link    a0,#0
+            clr     d5  
+            tst.l   8(a0)
+            beq     .loadCmp
+            lea     plyrGrid,a2
+            move.l  #plyGridY,d4
+            bra     drwRow
+.loadCmp
+            lea     cmpGrid,a2
+            move.l  #cmpGridY,d4
+
+drwRow      move.w  #gridX,d3           ; starting x value
             move.w  d4,d2               ; move lower y value into upper y
-            add.w   tileSize,d4         ; add tile size to lower y
+            add.w   #tileSize,d4         ; add tile size to lower y
             clr     d6                  ; column counter
             jsr     drwCol          
             addq    #1,d5               ; increment row counter
@@ -173,11 +183,12 @@ drwRow      move.w  #GRIDX,d3           ; starting x value
             move.l  #BLACK,d1
             move    #81,d0
             trap    #15
+            unlk    a0
             rts 
 
 drwCol      jsr     fillRct
             move.w  d3,d1               ; move right x value into left xx
-            add.w   tileSize,d3         ; add tile size to right x
+            add.w   #tileSize,d3         ; add tile size to right x
             move.w  #87,d0              ; draw rectangle
             trap    #15             
             addq    #1,d6               ; increment column counter
@@ -218,18 +229,18 @@ drawCursorTarget
 
             clr     d1
             clr     d2
-            move.b  10(a0),d1           
-            mulu    tileSize,d1
-            add     #GRIDX,d1
+            move.b  10(a0),d1           ; load x grid coord into d1        
+            mulu    #tileSize,d1        ; multiply grid coord by tile size 
+            add     #gridX,d1           ; add grids starting x value to d1
 
-            move.b  8(a0),d2
-            mulu    tileSize,d2
-            add.l   12(a0),d2
+            move.b  8(a0),d2            ; load y grid coord into d2
+            mulu    #tileSize,d2        ; multiply by tile size
+            add.l   12(a0),d2           ; add starting y value of grid into d1
 
             move.l  d1,d3
             move.l  d2,d4
-            add     tileSize,d3
-            add     tileSize,d4
+            add     #tileSize,d3
+            add     #tileSize,d4
 
             move.w  #91,d0
             trap    #15
@@ -237,7 +248,7 @@ drawCursorTarget
             move.l  d1,-4(a0)           ; store x values in local variable
             move.l  d3,-8(a0)
 
-            move    tileSize,d1
+            move    #tileSize,d1
             divu    #2,d1
             add.l   -4(a0),d1              
             move    d1,d3
@@ -251,7 +262,7 @@ drawCursorTarget
             move.l  d2,-4(a0)           ; store y values in local variable
             move.l  d4,-8(a0)
 
-            move    tileSize,d2
+            move    #tileSize,d2
             divu    #2,d2
             add.l   -4(a0),d2              
             move    d2,d4
@@ -463,29 +474,13 @@ cmpGrid     dc.b    00,00,00,00,00,00,00,00,00,00
             dc.b    00,00,00,00,00,00,00,00,00,00
 
 
-GRIDX       equ     100
-tileSize    dc.w    20
+
+gridX       equ     200
+cmpGridY    equ     30
+plyGridY    equ     250
 tileNum     dc.b    10
 
 tileclr     dc.l    BLACK,GRAY,AQUA,YELLOW,RED,GREEN,PURPLE
-
-BLACK       equ     $00000000 
-MAROON      equ     $00000080 
-GREEN       equ     $00008000 
-OLIVE       equ     $00008080 
-NAVY        equ     $00800000 
-PURPLE      equ     $00800080 
-TEAL        equ     $00808000 
-GRAY        equ     $00808080 
-RED         equ     $000000FF 
-LIME        equ     $0000FF00 
-YELLOW      equ     $0000FFFF 
-BLUE        equ     $00FF0000 
-FUCHSIA     equ     $00FF00FF 
-AQUA        equ     $00FFFF00 
-LTGRAY      equ     $00C0C0C0 
-WHITE       equ     $00FFFFFF 
-
 
 
 *~Font name~Courier New~

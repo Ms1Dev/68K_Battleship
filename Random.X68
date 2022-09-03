@@ -15,6 +15,8 @@
 *
 *   D2 + D3 should not be greater than 65535 ($FFFF)
 *
+*   D1.W contains return value
+*
 *---------------------------------------------------------------------------
 
 

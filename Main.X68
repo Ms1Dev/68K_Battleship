@@ -70,6 +70,7 @@ gameOver
 
 initialiseGame
             link    a0,#-4
+            jsr     drawBackground
             lea     plyrShips,a1
             lea     cmpShips,a2
             lea     pRemaining,a3
@@ -79,8 +80,10 @@ initialiseGame
 .nextIndex        
             move.l  d1,(a1)+
             move.l  d1,(a2)+
-            move.b  d1,(a3)+
-            move.b  d1,(a4)+
+            move.b  d1,(a3)
+            move.b  d1,(a4)
+            or.b    #$30,(a3)+      ; byte should be Fn where n is the ship length
+            or.b    #$30,(a4)+      ; F is flag to show the ship has not been placed
             addq.l  #1,d1
             cmp.l   #6,d1
             beq     shipArraySet
@@ -126,6 +129,11 @@ setup
             link    a0,#0
             lea     plyrShips,a3        ; select ship data from array
             move.l  selected,d1
+
+            lea     pRemaining,a5
+            adda.l  d1,a5
+            and.b   #$0F,(a5)           ; clear the flag for placing ship
+
             mulu    #4,d1
             adda.l  d1,a3               ; increment array to get selected ship data
             and.l   #$FFF0FFFF,(a3)     ; clear colour attribute
@@ -174,10 +182,15 @@ noRotate
             lea     gameMode,a2         ; load game mode
             addq.b  #1,(a2)             ; increment game mode to play mode
 noRsetIndex     
-            and.l   #$FFF0FFFF,(a3)     ; clear colour attribute of prev ship
+            and.l   #$FFF0FFFF,(a3)     ; set colour attribute of prev ship
             add.l   #$00020000,(a3)     ; set colour 
             lea     plyrShips,a3        ; load ships
-            move.l  selected,d1         
+            move.l  selected,d1     
+
+            lea     pRemaining,a5
+            adda.l  d1,a5
+            and.b   #$0F,(a5)           ; clear the flag for placing ship
+
             mulu    #4,d1           
             adda.l  d1,a3               ; select the next ship
             and.l   #$FFF0FFFF,(a3)     ; clear colour attribute of next ship
@@ -236,6 +249,7 @@ backToSetup
 beginGame   
             addq.b  #1,gameMode         ; increment game mode
             move.w  #$FF00,d1           ; clear screen
+            jsr     drawBackground
             move.l  #11,d0
             trap    #15
             lea     startMsg,a1
@@ -253,7 +267,7 @@ computerSetup
             
     * load selected ship
 loadNextShip
-            link    a0,#0
+            link    a0,#-12
             lea     cmpShips,a3         ; select ship data from array
             move.l  selected,d1
             mulu    #4,d1
@@ -313,6 +327,23 @@ notHorizontal
             adda    #$10,a7
             tst.b   d5                  ; collision flag
             bne     placeShipAgain
+
+            * movem.l d1-d3,-12(a0)        ; back up registers
+
+            move.l  selected,d1
+            lea     cRemaining,a5
+            adda.l  d1,a5
+            and.b   #$0F,(a5)               ; clear the flag for placing ship
+
+            * move    #$5,d2              ; set range 
+            * move    #$5,d3              ; set lower limit
+            * jsr     getRandom           ; d1 has random number
+
+            * move    #23,d0
+            * trap    #15                 ; call delay with random value
+
+            * movem.l -12(a0),d1-d3
+
             subq.l  #1,selected
 placeShipAgain
             unlk    a0
@@ -536,22 +567,37 @@ rhtBndryChk cmp.b   d4,d2
 
 gridRfrsh   
             move.l  d5,-(SP)            ; push collision flag data onto stack
-            lea     plyrGrid,a2         ; load player grid
-            move.l  #250,-(SP)          ; push y pos of grid on stack
+            move.l  #1,-(SP)            ; push y pos of grid on stack
             jsr     drwGrid         
             adda    #$4,a7              ; increment stack pointer
             
-            lea     cmpGrid,a2          ; load computer player grid
-            move.l  #20,-(a7)           ; push y pos of grid onto stack
+            move.l  #0,-(SP)           ; push y pos of grid onto stack
             jsr     drwGrid
             adda    #$4,a7              ; increment stack pointer
             move.l  (SP)+,d5            ; pop collison flag back in d5
+
+
+            move.l  remainingShipDisplayC,d1
+            swap    d1
+            move.l  #1,-(SP)
+            move.l  d1,-(SP)
+            pea     cRemaining
+            jsr     drawRemainingShips
+            adda    #12,a7
+
+            move.l  remainingShipDisplayP,d1
+            swap    d1
+            move.l  #0,-(SP)
+            move.l  d1,-(SP)
+            pea     pRemaining
+            jsr     drawRemainingShips
+            adda    #12,a7
  
 *cursor crosshair if in play mode
             cmp.b   #3,gameMode
             bne     noCursorTarget
             lea     cursorPos,a3
-            move.l  #20,-(SP)
+            move.l  #cmpGridY,-(SP)
             move.b  (a3),-(SP)
             move.b  (1,a3),-(SP)
             jsr     drawCursorTarget
@@ -1213,6 +1259,7 @@ copyArray
     
     INCLUDE     Random.X68
     INCLUDE     Grid.X68
+    INCLUDE     Image.X68
     
 cursorPos   dc.b    0,0
 
@@ -1254,7 +1301,32 @@ cmpWinMsg   dc.b    'Computer Won!',0
 showCmpShips    dc.b    0
 showMargins     dc.l    0
 shipSpacing     dc.w    3   ; Likelihood of computer ships touching
-    
+
+
+remainingShipDisplayC   dc.w    40,30
+remainingShipDisplayP   dc.w    40,450
+
+
+tileSize    equ     20
+
+BLACK       equ     $00000000 
+MAROON      equ     $00000080 
+GREEN       equ     $00008000 
+OLIVE       equ     $00008080 
+NAVY        equ     $00800000 
+PURPLE      equ     $00800080 
+TEAL        equ     $00808000 
+GRAY        equ     $00808080 
+RED         equ     $000000FF 
+LIME        equ     $0000FF00 
+YELLOW      equ     $0000FFFF 
+BLUE        equ     $00FF0000 
+FUCHSIA     equ     $00FF00FF 
+AQUA        equ     $00FFFF00 
+LTGRAY      equ     $00C0C0C0 
+WHITE       equ     $00FFFFFF 
+
+
     END    START        ; last line of source
 
 

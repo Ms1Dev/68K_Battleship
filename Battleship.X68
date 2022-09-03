@@ -17,14 +17,16 @@ START:                              ; first instruction of program
         move.l		#0,d1
         trap		#15
         jsr         setSeed     ; set the random seed
-        jsr     initialiseGame
+        jsr         initialiseGame
         jsr         gameLoop    
 
 
     SIMHALT                     ; halt simulator
 
     INCLUDE     Main.X68
-    
+
+
+
 END    START        ; last line of source
 
 
