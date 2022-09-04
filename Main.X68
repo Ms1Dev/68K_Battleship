@@ -1352,7 +1352,7 @@ playerTurn  dc.b    0
 
 winner      dc.b    0
 
-showCmpShips    dc.b    1
+showCmpShips    dc.b    0
 showMargins     dc.l    0
 shipSpacing     dc.w    2   ; Likelihood of computer ships touching
 
