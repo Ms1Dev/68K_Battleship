@@ -236,7 +236,7 @@ drawCursorTarget
 
             link    a0,#-8
 
-            move.l  #FUCHSIA,d1
+            move.l  #RED,d1
             move    #80,d0
             trap    #15
 
