@@ -161,7 +161,7 @@ clrGrdLoop
 
 drwGrid     
             link    a0,#0
-            clr     d5  
+            clr     d5
             tst.l   8(a0)
             beq     .loadCmp
             lea     plyrGrid,a2
@@ -183,6 +183,9 @@ drwRow      move.w  #gridX,d3           ; starting x value
             move.l  #BLACK,d1
             move    #81,d0
             trap    #15
+            move.l  #WHITE,d1
+            move.b  #80,d0              ; set border colour
+            trap    #15 
             unlk    a0
             rts 
 
@@ -196,7 +199,7 @@ drwCol      jsr     fillRct
             bne     drwCol
             rts           
 
-fillRct     link    a0,#-4
+fillRct     link    a0,#-8
             lea     (a2),a3             ; load grid
             move.b  tileNum,d7          ; move 10 to d7 (number of tiles)
             mulu    d5,d7               ; multiply row counter with d7
@@ -210,6 +213,16 @@ fillRct     link    a0,#-4
             lea     tileclr,a3          ; load tile colour array address
             adda    d7,a3               ; increment array  
             move.l  (a3),d1             ; move selected colour into d1
+            cmp.b   #2,gameMode
+            blt     fill
+            move.l  d1,-8(a0)
+            move.l  #BLACK,d1
+            move.b  #80,d0              ; set border colour
+            trap    #15 
+            move.l  -8(a0),d1
+            tst.l   d1
+            bne     fill
+            move.l  #SEA,d1
 fill        move.b  #81,d0              ; set fill colour
             trap    #15 
             unlk    a0 
@@ -480,7 +493,7 @@ cmpGridY    equ     30
 plyGridY    equ     250
 tileNum     dc.b    10
 
-tileclr     dc.l    BLACK,GRAY,AQUA,YELLOW,RED,GREEN,PURPLE
+tileclr     dc.l    BLACK,GRAY,PLACED,HIT,RED,PLACING,MISS,SHIP
 
 
 *~Font name~Courier New~

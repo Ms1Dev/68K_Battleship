@@ -22,6 +22,17 @@ gameContd
             bra     gameLoop
 
 setupMode   
+            tst.b   initGameMode
+            beq     .noInit
+            jsr     drawBackground
+            move    #1,-(SP)
+            move    #90,-(SP)
+            move    #415,-(SP)
+            jsr     drawTextBox
+            adda    #6,SP
+            jsr     gridRfrsh
+            move.b  #0,initGameMode
+.noInit
             jsr     setup
             bra     gameContd
             
@@ -35,6 +46,18 @@ cmpSetup
             bra     gameContd
             
 playMode    
+            tst.b   initGameMode
+            beq     .noInit
+            jsr     drawBackground
+            move    #2,-(SP)
+            move    #90,-(SP)
+            move    #415,-(SP)
+            jsr     drawTextBox
+            adda    #6,SP
+            jsr     setShipColour
+            jsr     gridRfrsh
+            move.b  #0,initGameMode
+.noInit
             tst.b   playerTurn
             beq     cmpTurn
             jsr     playRound
@@ -46,15 +69,15 @@ cmpTurn
 gameOver
             cmp.b   #1,winner
             beq     .playerWon
-            lea     cmpWinMsg,a1
+            move    #3,-(SP)        ; computer win message       
             bra     .showMessage
 .playerWon
-            lea     plyrWinMsg,a1 
+            move    #4,-(SP)        ; player win message
 .showMessage      
-            move.w  #300,d1                
-            move.w  #250,d2             
-            move.l  #95,d0 
-            trap    #15                 ;print  message on screen
+            move    #MSGWINY,-(SP)
+            move    #MSGWINX,-(SP)
+            jsr     drawTextBox
+            adda    #6,SP
 
             move.l  #0,-(SP)            ; make room on stack for return value
             jsr     userInput
@@ -64,7 +87,36 @@ gameOver
             jsr     initialiseGame
             
             bra     gameContd
-            
+
+
+
+*-----------------------------------------------------------------------------
+
+setShipColour
+            link    a0,#-12
+            movem.l a1/a2,-12(a0)
+            lea     plyrShips,a1
+            lea     plyrShips,a2
+            move.l  #5,-4(a0)
+.colourShips
+            and.l   #$FFF0FFFF,(a1)     ; clear colour attribute
+            add.l   #$00070000,(a1)+    ; set colour  
+            and.l   #$FFF0FFFF,(a2)     ; clear colour attribute
+            add.l   #$00070000,(a2)+    ; set colour  
+            subq.l  #1,-4(a0)
+            bne     .colourShips
+
+            move.l  #0,-(SP)      ; selected ship
+            move.l  #0,-(SP)            ; player flag
+            pea     plyrShips   
+            pea     plyrGrid     
+            jsr     clearGrd           
+            jsr     shipsOnGrd
+            adda    #$10,a7              
+
+            movem.l -12(a0),a1/a2
+            unlk    a0
+            rts
 
 *-----------------------------------------------------------------------------
 
@@ -118,6 +170,7 @@ shipArraySet
             move.b  #0,gameMode
 * set cursor position to 0,0
             move.w  #0,cursorPos
+            move.b  #1,playerTurn
             unlk    a0
             rts
 
@@ -181,6 +234,7 @@ noRotate
             move.l  #4,selected         ; if ship index is minus then set back to 4
             lea     gameMode,a2         ; load game mode
             addq.b  #1,(a2)             ; increment game mode to play mode
+            move.b  #1,initGameMode
 noRsetIndex     
             and.l   #$FFF0FFFF,(a3)     ; set colour attribute of prev ship
             add.l   #$00020000,(a3)     ; set colour 
@@ -215,7 +269,7 @@ noShipInc
             add.l   d1,(a3)             ; add new x,y data
 setupContinued
             move.l  selected,-(SP)      ; selected ship
-            move.l  #0,-(SP)            ; computer player flag
+            move.l  #0,-(SP)            ; player flag
             pea     plyrShips   
             pea     plyrGrid     
             jsr     clearGrd           
@@ -227,11 +281,11 @@ setupContinued
 *------------------------------------------------------------------------   
      
 begin   
-            lea     beginMsg,a1        
-            move.w  #300,d1                
-            move.w  #250,d2             
-            move.l  #95,d0
-            trap    #15                 ; print begin message on screen
+            move    #0,-(SP)
+            move    #MSGWINY,-(SP)
+            move    #MSGWINX,-(SP)
+            jsr     drawTextBox
+            adda    #6,SP
             move.l  #0,-(SP)            ; make room on stack for return value
             jsr     userInput
             move.l  (SP)+,d1
@@ -242,20 +296,16 @@ begin
             rts
 backToSetup 
             move.b  #0,gameMode         ; set game mode back to 0
+            move.b  #1,initGameMode
             move.w  #$FF00,d1           ; clear screen
             move.l  #11,d0
             trap    #15
             rts
 beginGame   
             addq.b  #1,gameMode         ; increment game mode
+            move.b  #1,initGameMode
             move.w  #$FF00,d1           ; clear screen
-            jsr     drawBackground
             move.l  #11,d0
-            trap    #15
-            lea     startMsg,a1
-            move.w  #300,d1
-            move.w  #250,d2
-            move.l  #95,d0
             trap    #15
             rts              
 
@@ -426,7 +476,7 @@ shipDestroyed
             beq     plyrWin
 
 nextPlayer
-            not.b  playerTurn
+            eor.b   #$01,playerTurn
 
 continueRound
             rts
@@ -434,6 +484,7 @@ continueRound
 plyrWin
             move.b  #1,winner
             move.b  #4,gameMode
+            move.b  #1,initGameMode
             bra     continueRound   
 
 
@@ -1035,13 +1086,14 @@ shipIsDestroyed
 
 
 endOfCmpTurn
-            not.b   playerTurn
+            eor.b   #$01,playerTurn
             unlk    a0
             rts
 
 cmpWin
             move.b  #2,winner
             move.b  #4,gameMode
+            move.b  #1,initGameMode
             bra     endOfCmpTurn
 
 *----------------------------------------------------------------------------------
@@ -1250,8 +1302,8 @@ randDelay
             link    a0,#0
             movem.l d2-d3,-8(a0)        ; back up registers
 
-            move    #$5,d2              ; set range 
-            move    #$5,d3              ; set lower limit
+            move    #40,d2              ; set range 
+            move    #10,d3              ; set lower limit
             jsr     getRandom           ; d1 has random number
 
             move    #23,d0
@@ -1300,21 +1352,29 @@ playerTurn  dc.b    0
 
 winner      dc.b    0
 
-beginMsg    dc.b    'Press "y" to begin or "n" to move ships',0
-startMsg    dc.b    'Start',0
-plyrWinMsg  dc.b    'Player Won!',0
-cmpWinMsg   dc.b    'Computer Won!',0
-
-showCmpShips    dc.b    0
+showCmpShips    dc.b    1
 showMargins     dc.l    0
-shipSpacing     dc.w    3   ; Likelihood of computer ships touching
+shipSpacing     dc.w    2   ; Likelihood of computer ships touching
 
 
 remainingShipDisplayC   dc.w    40,30
 remainingShipDisplayP   dc.w    40,450
 
+initGameMode    dc.b    1
+
+MSGWINX     equ     205
+MSGWINY     equ     200     
 
 tileSize    equ     20
+
+
+SHIP        equ     $008F8F8F
+PLACING     equ     $003ACE25
+PLACED      equ     $00C48034
+DESTROYED   equ     $00000080
+SEA         equ     $00808000
+MISS        equ     $00800000
+HIT         equ     $0000B3FF
 
 BLACK       equ     $00000000 
 MAROON      equ     $00000080 
