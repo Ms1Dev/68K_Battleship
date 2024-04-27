@@ -2,7 +2,11 @@
 
 
 Assembly program of the classic Battleship game to run on the Motorola 68k. This was a mini summer project continuing on from a university module about computer hardware.
-
+</br>
+</br>
+The entry point is Battleship.X68 if anyone were to run this.
+</br>
+</br>
 Screenshots can be seen running on the <a href="http://www.easy68k.com/">Easy68K</a> simulator.
 
 
